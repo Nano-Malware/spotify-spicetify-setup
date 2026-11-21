@@ -29,7 +29,7 @@ fi
 
 # This is idempotent: it installs the pinned historical build only when needed,
 # ensures its 24.08 runtime/Mesa extension, verifies it, and masks app updates.
-"$PROJECT_DIR/scripts/install_legacy_spotify.sh"
+bash "$PROJECT_DIR/scripts/install_legacy_spotify.sh"
 ensure_user_spotify_installed
 
 # Keep the official Spicetify CLI available, but leave Spotify unpatched.
