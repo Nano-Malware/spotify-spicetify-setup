@@ -56,13 +56,13 @@ if ! spicetify_has_backup; then
     spicetify backup
 fi
 
-if ! marketplace_is_installed; then
-    "$PROJECT_DIR/scripts/install_marketplace.sh"
-fi
-
 if ! spicetify_has_customizations && repository_backup_exists; then
     info "Restoring the repository's portable customizations."
     "$PROJECT_DIR/restore.sh" --yes
+fi
+
+if ! marketplace_is_installed; then
+    "$PROJECT_DIR/scripts/install_marketplace.sh"
 fi
 
 if ! spicetify_is_applied; then
