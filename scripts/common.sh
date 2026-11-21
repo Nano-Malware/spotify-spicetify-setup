@@ -106,7 +106,13 @@ spicetify_has_customizations() {
 
     for name in Themes Extensions CustomApps; do
         [[ -d "$SPICETIFY_CONFIG_DIR/$name" ]] || continue
-        entry="$(find "$SPICETIFY_CONFIG_DIR/$name" -mindepth 1 -print -quit 2>/dev/null)"
+        if [[ "$name" == "CustomApps" ]]; then
+            # Marketplace is installed by the launcher; it is not a personal
+            # customization and must not block restoring saved custom apps.
+            entry="$(find "$SPICETIFY_CONFIG_DIR/$name" -mindepth 1 -maxdepth 1 ! -name marketplace -print -quit 2>/dev/null)"
+        else
+            entry="$(find "$SPICETIFY_CONFIG_DIR/$name" -mindepth 1 -print -quit 2>/dev/null)"
+        fi
         [[ -n "$entry" ]] && return 0
     done
     return 1
