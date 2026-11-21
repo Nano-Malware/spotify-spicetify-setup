@@ -19,4 +19,5 @@ prefs
 .env
 .env.*
 
-# Do not ignore backup/profile: it is the portable customization snapshot.
+# Personal Spicetify customizations belong in a separate private repository.
+backup/profile/
