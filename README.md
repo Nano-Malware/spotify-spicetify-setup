@@ -45,7 +45,7 @@ The first installation downloads the old Spotify build and its 24.08 runtime/gra
 
 ```bash
 ./scripts/diagnose.sh                 # collect compatibility diagnostics
-./scripts/install_legacy_spotify.sh   # install/verify the pinned compatible Spotify build
+bash ./scripts/install_legacy_spotify.sh # install/verify the pinned compatible Spotify build
 ./scripts/install_spicetify.sh        # install the official Spicetify CLI
 ```
 
