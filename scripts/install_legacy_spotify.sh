@@ -45,25 +45,39 @@ if ! flatpak remotes --user --columns=name | grep -Fxq flathub; then
 fi
 
 # The Flathub 24.08 branch now points to Mesa 26.1.x, which is too new
-# for this machine's AMD DRM 3.42. Export the exact known-good 25.2.6
-# commits from the existing system installation as local Flatpak bundles.
+# for this machine's AMD DRM 3.42. Re-export the already-installed, verified
+# Mesa 25.2.6 deployment files and metadata; this avoids collection-ID/P2P
+# requirements and does not modify the system Flatpak installation.
 MESA_EXTRA_REF="org.freedesktop.Platform.GL.default//24.08extra"
 MESA_VERSION="25.2.6"
 MESA_COMMIT="e7cca7bcddd35029a6cb5720367f49255a6be3d338eaf1e7a57945cbe84e03ec"
 MESA_EXTRA_COMMIT="765326f0e2abc4b69240f4283bb2437b04d468ce2377cf716d05b3d71a8e646e"
-TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
-trap 'rm -rf -- "$TMP_DIR"' EXIT
+MESA_PIN_FILE="$SETUP_DIR/.mesa-24.08-pinned"
 
-info "Ensuring Freedesktop 24.08 is installed in Goinfre."
-if ! flatpak info --user "$RUNTIME_REF" >/dev/null 2>&1; then
-    flatpak install --user --noninteractive --assumeyes flathub "$RUNTIME_REF"
-fi
-
+project_mesa_version="$(flatpak info --user "$MESA_REF" 2>/dev/null |
+    awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}' || true)"
+project_mesa_extra_version="$(flatpak info --user "$MESA_EXTRA_REF" 2>/dev/null |
+    awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}' || true)"
 project_mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true)"
 project_mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
 
-if [[ "$project_mesa_commit" == "$MESA_COMMIT" && "$project_mesa_extra_commit" == "$MESA_EXTRA_COMMIT" ]]; then
-    info "The project-owned installation already has the pinned Mesa $MESA_VERSION pair."
+marker_source_gl="$(sed -n '1p' "$MESA_PIN_FILE" 2>/dev/null || true)"
+marker_source_extra="$(sed -n '2p' "$MESA_PIN_FILE" 2>/dev/null || true)"
+marker_installed_gl="$(sed -n '3p' "$MESA_PIN_FILE" 2>/dev/null || true)"
+marker_installed_extra="$(sed -n '4p' "$MESA_PIN_FILE" 2>/dev/null || true)"
+
+marker_valid=0
+if [[ "$marker_source_gl" == "$MESA_COMMIT" &&
+      "$marker_source_extra" == "$MESA_EXTRA_COMMIT" &&
+      "$marker_installed_gl" == "$project_mesa_commit" &&
+      "$marker_installed_extra" == "$project_mesa_extra_commit" &&
+      "$project_mesa_version" == "$MESA_VERSION" &&
+      "$project_mesa_extra_version" == "$MESA_VERSION" ]]; then
+    marker_valid=1
+fi
+
+if [[ "$marker_valid" == "1" ]]; then
+    info "The project-owned installation already has the verified Mesa $MESA_VERSION pair."
 else
     system_mesa_version="$(flatpak --system info "$MESA_REF" 2>/dev/null |
         awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}' || true)"
@@ -76,28 +90,44 @@ else
           "$system_mesa_extra_version" != "$MESA_VERSION" ||
           "$system_mesa_commit" != "$MESA_COMMIT" ||
           "$system_mesa_extra_commit" != "$MESA_EXTRA_COMMIT" ]]; then
-        die "The exact compatible Mesa $MESA_VERSION pair is not installed in the system Flatpak installation. Refusing to use Flathub's newer Mesa branch. System versions: \${system_mesa_version:-missing}/\${system_mesa_extra_version:-missing}."
+        die "The exact compatible Mesa $MESA_VERSION pair is not installed in the system Flatpak installation. Refusing to use Flathub's newer Mesa branch. System versions: ${system_mesa_version:-missing}/${system_mesa_extra_version:-missing}."
     fi
 
     system_mesa_location="$(flatpak --system info --show-location "$MESA_REF" 2>/dev/null || true)"
-    [[ -n "$system_mesa_location" ]] ||
-        die "Could not locate the system Mesa installation to export its verified commits."
-    system_install_root="\${system_mesa_location%%/runtime/*}"
-    system_repo="$system_install_root/repo"
-    [[ -f "$system_repo/config" && -d "$system_repo/objects" ]] ||
-        die "The system Flatpak OSTree repository is not readable at $system_repo."
+    system_mesa_extra_location="$(flatpak --system info --show-location "$MESA_EXTRA_REF" 2>/dev/null || true)"
+    [[ -n "$system_mesa_location" && -d "$system_mesa_location/files" && -f "$system_mesa_location/metadata" ]] ||
+        die "Could not read the installed system Mesa GL deployment."
+    [[ -n "$system_mesa_extra_location" && -d "$system_mesa_extra_location/files" && -f "$system_mesa_extra_location/metadata" ]] ||
+        die "Could not read the installed system Mesa GL-extra deployment."
 
+    TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
+    trap 'rm -rf -- "$TMP_DIR"' EXIT
+    MESA_EXPORT_REPO="$TMP_DIR/mesa-export-repo"
     mesa_bundle="$TMP_DIR/mesa-24.08.flatpak"
     mesa_extra_bundle="$TMP_DIR/mesa-24.08extra.flatpak"
 
-    info "Exporting the verified system Mesa $MESA_VERSION commits as local Flatpak bundles."
-    flatpak build-bundle --runtime --from-commit="$MESA_COMMIT" \
-        "$system_repo" "$mesa_bundle" org.freedesktop.Platform.GL.default 24.08
-    flatpak build-bundle --runtime --from-commit="$MESA_EXTRA_COMMIT" \
-        "$system_repo" "$mesa_extra_bundle" org.freedesktop.Platform.GL.default 24.08extra
+    info "Re-exporting the verified system Mesa $MESA_VERSION deployment files into a temporary Flatpak repository."
+    mesa_export_output="$(flatpak build-export --runtime --files=files --arch=x86_64 \
+        --collection-id=org.flathub.Stable "$MESA_EXPORT_REPO" "$system_mesa_location" 24.08)"
+    mesa_export_commit="$(printf '%s\n' "$mesa_export_output" |
+        awk -F': ' '/^[[:space:]]*Commit:/ {print $2; exit}')"
+    [[ -n "$mesa_export_commit" ]] ||
+        die "Could not verify the exported Mesa GL commit."
 
+    mesa_extra_export_output="$(flatpak build-export --runtime --files=files --arch=x86_64 \
+        --collection-id=org.flathub.Stable "$MESA_EXPORT_REPO" "$system_mesa_extra_location" 24.08extra)"
+    mesa_extra_export_commit="$(printf '%s\n' "$mesa_extra_export_output" |
+        awk -F': ' '/^[[:space:]]*Commit:/ {print $2; exit}')"
+    [[ -n "$mesa_extra_export_commit" ]] ||
+        die "Could not verify the exported Mesa GL-extra commit."
+
+    flatpak build-update-repo "$MESA_EXPORT_REPO"
+    flatpak build-bundle --runtime "$MESA_EXPORT_REPO" "$mesa_bundle" \
+        org.freedesktop.Platform.GL.default 24.08
+    flatpak build-bundle --runtime "$MESA_EXPORT_REPO" "$mesa_extra_bundle" \
+        org.freedesktop.Platform.GL.default 24.08extra
     [[ -s "$mesa_bundle" && -s "$mesa_extra_bundle" ]] ||
-        die "Could not create both verified Mesa runtime bundles."
+        die "Could not create both Mesa runtime bundles."
 
     flatpak mask --user --remove "$MESA_REF" >/dev/null 2>&1 || true
     flatpak mask --user --remove "$MESA_EXTRA_REF" >/dev/null 2>&1 || true
@@ -115,6 +145,18 @@ else
     flatpak install --user --noninteractive --assumeyes --bundle "$mesa_bundle"
     info "Installing the verified Mesa 25.2.6 GL-extra bundle in Goinfre."
     flatpak install --user --noninteractive --assumeyes --bundle "$mesa_extra_bundle"
+
+    installed_mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true)"
+    installed_mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
+    [[ "$installed_mesa_commit" == "$mesa_export_commit" ]] ||
+        die "Installed Mesa GL commit does not match the verified local export."
+    [[ "$installed_mesa_extra_commit" == "$mesa_extra_export_commit" ]] ||
+        die "Installed Mesa GL-extra commit does not match the verified local export."
+
+    printf '%s\n%s\n%s\n%s\n' \
+        "$MESA_COMMIT" "$MESA_EXTRA_COMMIT" \
+        "$installed_mesa_commit" "$installed_mesa_extra_commit" > "$MESA_PIN_FILE.tmp"
+    mv -- "$MESA_PIN_FILE.tmp" "$MESA_PIN_FILE"
 fi
 
 mesa_version="$(flatpak info --user "$MESA_REF" 2>/dev/null |
@@ -125,11 +167,12 @@ mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true
 mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
 
 [[ "$mesa_version" == "$MESA_VERSION" && "$mesa_extra_version" == "$MESA_VERSION" ]] ||
-    die "Mesa version verification failed. Expected $MESA_VERSION for both 24.08 GL extensions; found \${mesa_version:-missing}/\${mesa_extra_version:-missing}."
-[[ "$mesa_commit" == "$MESA_COMMIT" && "$mesa_extra_commit" == "$MESA_EXTRA_COMMIT" ]] ||
-    die "Mesa commit verification failed. The pinned 25.2.6 commits are not active."
+    die "Mesa version verification failed. Expected $MESA_VERSION for both 24.08 GL extensions; found ${mesa_version:-missing}/${mesa_extra_version:-missing}."
+[[ "$mesa_commit" == "$(sed -n '3p' "$MESA_PIN_FILE")" &&
+   "$mesa_extra_commit" == "$(sed -n '4p' "$MESA_PIN_FILE")" ]] ||
+    die "Mesa commit verification failed. The locally exported 25.2.6 commits are not active."
 
-info "Verified Goinfre Mesa $mesa_version / $mesa_extra_version and both exact commits."
+info "Verified Goinfre Mesa $mesa_version / $mesa_extra_version and both locally pinned commits."
 if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_RUNTIME" || "$current_ref" != "$TARGET_REF" ]]; then
     info "Downloading the verified Spotify $TARGET_VERSION repository archive..."
     if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
