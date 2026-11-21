@@ -35,18 +35,19 @@ RELEASE_VERSION=""
 if curl -fsSL -H 'Accept: application/json' \
     "$SPICETIFY_RELEASES_URL/latest" -o "$TMP_DIR/release.json"; then
     RELEASE_VERSION="$(python3 - "$TMP_DIR/release.json" <<'PY'
-import json
 import re
 import sys
 
 try:
     with open(sys.argv[1], "r", encoding="utf-8") as handle:
-        release = json.load(handle)
-    tag = release.get("tag_name", "")
-    match = re.fullmatch(r"v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)", tag)
+        content = handle.read()
+    match = re.search(
+        r'"tag_name"\s*:\s*"v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)"',
+        content,
+    )
     if match:
         print(match.group(1))
-except (OSError, ValueError, TypeError):
+except OSError:
     pass
 PY
 )" || true
