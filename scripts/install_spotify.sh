@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Compatibility wrapper: prefer the tested build, otherwise install Flathub stable.
+# Compatibility wrapper for the pinned historical Spotify installer.
 set -Eeuo pipefail
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-exec "$SCRIPT_DIR/recover_known_good.sh" "${@}"
+exec "$SCRIPT_DIR/install_legacy_spotify.sh" "$@"
