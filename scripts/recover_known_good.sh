@@ -27,6 +27,55 @@ if ! flatpak remotes --user | awk 'NR > 1 {print $1}' | grep -Fxq "$REMOTE"; the
     flatpak remote-add --user --if-not-exists "$REMOTE" "$FLATHUB_URL"
 fi
 
+# Explicitly copy this machine's currently installed system Spotify into the
+# project-owned user installation. Use this only when the system copy is the
+# version the user has confirmed works. The system installation is read-only.
+if [[ "${1:-}" == "--system-copy" ]]; then
+    [[ "$(uname -m)" == "x86_64" ]] || die "System-copy mode currently supports x86_64 only."
+
+    SYSTEM_COMMIT="$(flatpak info --system --show-commit "$APP_ID" 2>/dev/null || true)"
+    SYSTEM_RUNTIME="$(flatpak info --system --show-runtime "$APP_ID" 2>/dev/null || true)"
+    SYSTEM_VERSION="$(flatpak info --system "$APP_ID" 2>/dev/null | awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}')"
+
+    [[ -n "$SYSTEM_COMMIT" && -n "$SYSTEM_RUNTIME" ]] || die "No system-installed Spotify application was found."
+    [[ -r "$SYSTEM_REPO/config" && -d "$SYSTEM_REPO/objects" ]] || die "The system Flatpak repository is not readable; cannot export its Spotify build."
+
+    if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
+        die "Spotify is running. Close both system and user Spotify completely, then retry."
+    fi
+
+    info "Exporting the existing system Spotify build: ${SYSTEM_VERSION:-unknown}"
+    info "System app commit: $SYSTEM_COMMIT"
+    info "System runtime: $SYSTEM_RUNTIME"
+    mkdir -p "$BUNDLE_DIR"
+    flatpak build-bundle --arch=x86_64 --runtime-repo="$FLATHUB_URL" \
+        "$SYSTEM_REPO" "$BUNDLE_TMP" "$APP_ID" stable
+    [[ -s "$BUNDLE_TMP" ]] || die "The system Spotify bundle export failed."
+    mv -f -- "$BUNDLE_TMP" "$BUNDLE"
+
+    info "Installing the exported app into the project-owned user Flatpak installation."
+    flatpak install --user --reinstall --assumeyes --bundle "$BUNDLE"
+
+    DEPLOYED_COMMIT="$(flatpak info --user --show-commit "$APP_ID" 2>/dev/null || true)"
+    DEPLOYED_RUNTIME="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null || true)"
+    DEPLOYED_VERSION="$(spotify_installed_version || true)"
+
+    printf '\nSystem Spotify version: %s\n' "${SYSTEM_VERSION:-unknown}"
+    printf 'System app commit: %s\n' "$SYSTEM_COMMIT"
+    printf 'User Spotify version: %s\n' "${DEPLOYED_VERSION:-unknown}"
+    printf 'User app commit: %s\n' "${DEPLOYED_COMMIT:-unknown}"
+    printf 'User runtime: %s\n' "${DEPLOYED_RUNTIME:-unknown}"
+
+    [[ "$DEPLOYED_COMMIT" == "$SYSTEM_COMMIT" ]] || die "The exported user app commit does not match the system app commit; refusing to call this a successful copy."
+    [[ "$DEPLOYED_RUNTIME" == "$SYSTEM_RUNTIME" ]] || die "The exported user runtime does not match the system runtime."
+
+    # Keep the user copy on this exact confirmed-working build until explicitly
+    # unmasked by the user. This does not change the system installation.
+    flatpak mask --user "$APP_ID"
+    ok "Copied the confirmed-working system Spotify build into Goinfre."
+    exit 0
+fi
+
 CURRENT_COMMIT="$(flatpak info --user --show-commit "$APP_ID" 2>/dev/null || true)"
 CURRENT_RUNTIME="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null || true)"
 if [[ -n "$CURRENT_COMMIT" ]]; then
