@@ -12,24 +12,29 @@ mkdir -p "$SNAPSHOT_DIR"
 for name in Themes Extensions CustomApps; do
     source_dir="$SPICETIFY_CONFIG_DIR/$name"
     destination="$SNAPSHOT_DIR/$name"
-    rm -rf -- "$destination"
-    mkdir -p "$destination"
     if [[ -d "$source_dir" ]]; then
-        cp -a "$source_dir/." "$destination/"
+        tmp_destination="$SNAPSHOT_DIR/.$name.tmp"
+        rm -rf -- "$tmp_destination"
+        mkdir -p "$tmp_destination"
+        cp -a "$source_dir/." "$tmp_destination/"
+        rm -rf -- "$destination"
+        mv -- "$tmp_destination" "$destination"
         ok "Backed up $name"
     else
-        info "No $name directory exists yet; saved an empty folder."
+        info "No $name directory exists; preserving any existing repository snapshot."
     fi
 done
 
 if [[ -f "$SPICETIFY_CONFIG_FILE" ]]; then
     # Do not put machine-specific install paths or Spicetify's machine-specific
     # vanilla-app backup metadata into the portable profile.
+    tmp_config="$SNAPSHOT_DIR/.config-xpui.ini.tmp"
     awk '
         /^\[Backup\][[:space:]]*$/ { exit }
         /^[[:space:]]*(spotify_path|prefs_path|spotify_launch_flags)[[:space:]]*=/ { next }
         { print }
-    ' "$SPICETIFY_CONFIG_FILE" > "$SNAPSHOT_DIR/config-xpui.ini"
+    ' "$SPICETIFY_CONFIG_FILE" > "$tmp_config"
+    mv -f -- "$tmp_config" "$SNAPSHOT_DIR/config-xpui.ini"
 fi
 
 cat > "$SNAPSHOT_DIR/README.txt" <<'TXT'
