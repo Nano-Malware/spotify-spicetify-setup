@@ -60,6 +60,6 @@ Linux (tested on Ubuntu), Flatpak, curl, Python 3, tar, unzip, awk, find, flock,
 
 ## Security
 
-Never commit Spotify prefs, credentials, cookies, tokens, the Flatpak app directory, or machine-specific state. Review `backup/profile/` before pushing: this repository is public, so committed customizations are publicly visible. Respect the licenses of third-party themes, extensions and custom apps.
+Never commit Spotify prefs, credentials, cookies, tokens, the Flatpak app directory, or machine-specific state. `./backup.sh` saves themes, extensions, custom apps and sanitized settings under `backup/profile/`; Marketplace and Spicetify's vanilla Spotify backup are excluded. The snapshot is ignored by this public repository and is intended for a separate private repository. The script does not create a Git repository, commit, or push. Review the snapshot before publishing it privately, and respect the licenses of third-party themes, extensions and custom apps.
 
 See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for troubleshooting steps and recovery details.
