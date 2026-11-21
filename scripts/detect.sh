@@ -35,8 +35,10 @@ else
 fi
 
 if [[ -z "$CANDIDATE" ]]; then
-    if [[ -d /goinfre && -w /goinfre ]]; then
-        CANDIDATE="/goinfre/${USER:-$(id -un)}/spotify-spicetify"
+    GOINFRE_USER_DIR="/goinfre/${USER:-$(id -un)}"
+    if [[ -d "$GOINFRE_USER_DIR" && -w "$GOINFRE_USER_DIR" ]] ||
+       [[ -d /goinfre && -w /goinfre ]]; then
+        CANDIDATE="$GOINFRE_USER_DIR/spotify-spicetify"
     else
         CANDIDATE="$HOME/.local/share/spotify-spicetify"
     fi
