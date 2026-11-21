@@ -89,6 +89,36 @@ jobs:
           print(f"Snapcraft SHA-256: {source['sha256']}")
           PY
 
+      - name: Use the standard Flatpak library directory for Ayatana IDO
+        run: |
+          python3 - "$RUNNER_TEMP/flathub-spotify/com.spotify.Client.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest_path = pathlib.Path(sys.argv[1])
+          manifest = json.loads(manifest_path.read_text())
+          found = False
+
+          def patch_modules(modules):
+              global found
+              for module in modules:
+                  if module.get("name") == "ayatana-ido":
+                      options = module.setdefault("config-opts", [])
+                      flag = "-DCMAKE_INSTALL_LIBDIR=lib"
+                      if flag not in options:
+                          options.append(flag)
+                      found = True
+                  patch_modules(module.get("modules", []))
+
+          patch_modules(manifest.get("modules", []))
+          if not found:
+              raise SystemExit("Could not find the ayatana-ido module in the pinned manifest.")
+
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\\n")
+          print("Configured ayatana-ido to install pkg-config files under /app/lib/pkgconfig.")
+          PY
+
       - name: Build the historical Flatpak
         run: |
           dbus-run-session -- flatpak-builder \
