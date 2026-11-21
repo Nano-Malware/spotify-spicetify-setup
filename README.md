@@ -11,13 +11,14 @@ No sudo or administrator access is used. The project keeps its Flatpak installat
 ## What launch.sh does
 
 1. Selects a writable storage location and initializes the user Flatpak directory.
-2. Checks whether Spotify is using the project's tested release and compatible Flatpak runtime.
-3. If recovery is needed, it first checks the trusted Flathub remote for that tested release. If the remote no longer provides it, the launcher can export the same release from an existing system Flatpak installation, provided the local Flatpak repository is readable. It stops rather than silently installing an untested version.
-4. Installs the official Spicetify CLI if it is missing.
-5. Keeps Spicetify config and its vanilla backup in the selected setup directory.
-6. Creates a vanilla backup only when one is missing or does not match the installed Spotify version. A valid backup is never reset automatically.
-7. Installs Marketplace and restores the repository's portable customizations when the user config is empty.
-8. Applies Spicetify only when the Spotify app is not already patched, verifies the result, and launches Spotify.
+2. Automatically snapshots your existing themes, extensions, custom apps and portable settings into `backup/profile/` before setup changes anything. This folder is ignored by the public repository.
+3. Checks whether Spotify is using the project's tested release and compatible Flatpak runtime.
+4. If recovery is needed, it first checks the trusted Flathub remote for that tested release. If the remote no longer provides it, the launcher can export the same release from an existing system Flatpak installation, provided the local Flatpak repository is readable. It stops rather than silently installing an untested version.
+5. Installs the official Spicetify CLI if it is missing.
+6. Keeps Spicetify config and its vanilla backup in the selected setup directory.
+7. Creates a vanilla backup only when one is missing or does not match the installed Spotify version. A valid backup is never reset automatically.
+8. Restores the saved personal customizations into Spicetify's active config when they are not already present, then installs Marketplace if needed.
+9. Applies Spicetify only when the Spotify app is not already patched, verifies the result, and launches Spotify.
 
 The project uses a tested Spotify build instead of automatically switching to the newest release. This keeps the application and runtime combination predictable. The build identifier is an internal implementation detail; users do not need to find, enter, or change it.
 
