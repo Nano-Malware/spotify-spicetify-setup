@@ -24,8 +24,9 @@ fi
 
 [[ -s "$PREFS_PATH" ]] || die "Spotify prefs file is still missing or empty. Open Spotify, log in, and run ./scripts/configure.sh again."
 
-info "Closing Spotify before patching is safest. Please quit Spotify completely, then continue."
-read -r -p "Press Enter after Spotify is fully closed... "
+if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
+    die "Spotify is still running. Close it completely before configuring Spicetify."
+fi
 
 spicetify config spotify_path "$SPOTIFY_PATH" prefs_path "$PREFS_PATH"
 
