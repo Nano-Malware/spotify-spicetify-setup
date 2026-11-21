@@ -1,0 +1,22 @@
+# Machine-specific install location and runtime output
+.setup-dir
+logs/
+*.log
+*.tmp
+*.part
+
+# Local editor and OS files
+.DS_Store
+*~
+*.swp
+*.swo
+
+# Never commit Spotify account/session data or local app state
+prefs
+*.prefs
+.cookies
+*.token
+.env
+.env.*
+
+# Do not ignore backup/profile: it is the portable customization snapshot.
