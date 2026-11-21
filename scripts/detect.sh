@@ -13,7 +13,7 @@ require_command stat
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 [[ "$OS" == "Linux" ]] || die "This first version supports Linux only (detected: $OS)."
-[[ "$ARCH" == "x86_64" ]] || die "This Spotify bundle is built for x86_64, not $ARCH."
+[[ "$ARCH" == "x86_64" ]] || die "This Spotify package is built for x86_64, not $ARCH."
 [[ -r /etc/os-release ]] || die "Cannot identify the Linux distribution."
 # shellcheck disable=SC1091
 source /etc/os-release
