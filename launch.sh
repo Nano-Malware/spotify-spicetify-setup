@@ -30,7 +30,8 @@ if ! spotify_is_installed; then
     info "Spotify is not installed in this project's user Flatpak directory."
     "$PROJECT_DIR/scripts/recover_known_good.sh" --yes
 else
-    info "Found a user-installed Spotify build: $(flatpak info --user --show-version "$APP_ID")"
+    SPOTIFY_VERSION="$(spotify_installed_version || true)"
+    info "Found user-installed Spotify${SPOTIFY_VERSION:+ version $SPOTIFY_VERSION}."
 fi
 
 ensure_user_spotify_installed
