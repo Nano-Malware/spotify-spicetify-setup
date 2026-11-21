@@ -8,13 +8,14 @@ PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 source "$PROJECT_DIR/scripts/common.sh"
 init_paths
 require_command flatpak
-require_command mktemp
 
 KNOWN_GOOD_COMMIT="d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366"
 REMOTE="flathub"
 SYSTEM_REPO="/var/lib/flatpak/repo"
 BUNDLE_DIR="$SETUP_DIR/recovery"
 BUNDLE="$BUNDLE_DIR/spotify-known-good.flatpak"
+BUNDLE_TMP="$BUNDLE_DIR/.spotify-known-good.$$.flatpak"
+trap 'rm -f -- "$BUNDLE_TMP"' EXIT
 
 printf '\nSpotify compatibility recovery\n'
 printf '===============================\n'
@@ -49,8 +50,16 @@ else
     [[ -r "$SYSTEM_REPO/objects" && -x "$SYSTEM_REPO/objects" ]] || die "System OSTree objects are not readable. Repository config alone is not enough to export a bundle."
     mkdir -p "$BUNDLE_DIR"
     info "Exporting the exact known-good system app commit to $BUNDLE"
-    flatpak build-bundle --arch=x86_64 --from-commit="$KNOWN_GOOD_COMMIT" --runtime-repo="$FLATHUB_URL" "$SYSTEM_REPO" "$BUNDLE" "$APP_ID" stable
-    [[ -s "$BUNDLE" ]] || die "Bundle export did not produce a non-empty file."
+
+    # IMPORTANT: do not pass --from-commit here.
+    # --from-commit creates a delta that requires its base commit in the
+    # destination OSTree repository. The Goinfre user repo is independent
+    # from /var/lib/flatpak, so it does not contain that system commit.
+    # Omitting --from-commit creates a complete bundle (delta against empty).
+    flatpak build-bundle --arch=x86_64 --runtime-repo="$FLATHUB_URL" "$SYSTEM_REPO" "$BUNDLE_TMP" "$APP_ID" stable
+    [[ -s "$BUNDLE_TMP" ]] || die "Bundle export did not produce a non-empty file."
+    mv -f -- "$BUNDLE_TMP" "$BUNDLE"
+    ok "Created a complete standalone bundle."
 fi
 
 printf '\nRecovery source: %s\n' "$SOURCE"
