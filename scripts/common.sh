@@ -153,6 +153,8 @@ init_paths() {
     export XDG_CACHE_HOME="$SETUP_DIR/xdg-cache"
     export XDG_DATA_HOME="$SETUP_DIR/xdg-data"
     export XDG_STATE_HOME="$SETUP_DIR/xdg-state"
+    export SPICETIFY_CONFIG="$XDG_CONFIG_HOME/spicetify"
+    export SPICETIFY_STATE="$XDG_STATE_HOME/spicetify"
     export PATH="$SETUP_DIR/bin:$PATH"
 
     BIN_DIR="$SETUP_DIR/bin"
@@ -163,6 +165,11 @@ init_paths() {
     PREFS_PATH="$HOME/.var/app/$APP_ID/config/spotify/prefs"
 
     mkdir -p "$BIN_DIR" "$SPICETIFY_CONFIG_DIR" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
+
+    # Preserve customizations from the standard Spicetify config location.
+    if [[ ! -f "$SPICETIFY_CONFIG_FILE" && -d "$HOME/.config/spicetify" ]]; then
+        cp -a "$HOME/.config/spicetify/." "$SPICETIFY_CONFIG_DIR/"
+    fi
 
     # Older project versions let Spicetify put its vanilla backup in ~/.local/state.
     # Copy it once into the Goinfre-backed state directory; never delete the source.
@@ -178,7 +185,7 @@ require_spicetify() {
 
 spicetify() {
     require_spicetify
-    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_CACHE_HOME="$XDG_CACHE_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" "$SPICETIFY_BIN" "$@"
+    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_CACHE_HOME="$XDG_CACHE_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" SPICETIFY_CONFIG="$SPICETIFY_CONFIG" SPICETIFY_STATE="$SPICETIFY_STATE" "$SPICETIFY_BIN" "$@"
 }
 
 spotify_install_location() {
