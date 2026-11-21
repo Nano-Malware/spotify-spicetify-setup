@@ -11,15 +11,15 @@ No sudo or administrator access is used. The project keeps its Flatpak installat
 ## What launch.sh does
 
 1. Selects a writable storage location and initializes the user Flatpak directory.
-2. Checks the Spotify app commit and runtime against the tested baseline:
-   - Commit: `d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366`
-   - Runtime: `org.freedesktop.Platform/x86_64/24.08`
-3. If necessary, recovers that exact build from Flathub or exports it from the matching system Flatpak repository. It never copies random system files or accepts an unverified version.
+2. Checks whether Spotify is using the project's tested release and compatible Flatpak runtime.
+3. If recovery is needed, it first checks the trusted Flathub remote for that tested release. If the remote no longer provides it, the launcher can export the same release from an existing system Flatpak installation, provided the local Flatpak repository is readable. It stops rather than silently installing an untested version.
 4. Installs the official Spicetify CLI if it is missing.
 5. Keeps Spicetify config and its vanilla backup in the selected setup directory.
 6. Creates a vanilla backup only when one is missing or does not match the installed Spotify version. A valid backup is never reset automatically.
 7. Installs Marketplace and restores the repository's portable customizations when the user config is empty.
 8. Applies Spicetify only when the Spotify app is not already patched, verifies the result, and launches Spotify.
+
+The project uses a tested Spotify build instead of automatically switching to the newest release. This keeps the application and runtime combination predictable. The build identifier is an internal implementation detail; users do not need to find, enter, or change it.
 
 The first run may open Spotify so you can sign in. Close it and run `./launch.sh` again to finish setup and start the customized app. If the user prefs do not exist yet, the launcher opens Spotify for profile creation and resumes setup on the next run.
 
@@ -45,14 +45,14 @@ cd spotify-spicetify-setup
 ## Manual maintenance
 
 ```bash
-./scripts/diagnose.sh       # collect compatibility diagnostics
-./scripts/recover_known_good.sh  # interactive pinned-version recovery
-./backup.sh                 # update portable themes/extensions/custom apps snapshot
-./restore.sh                # interactively restore that snapshot
-./apply.sh                  # manually apply Spicetify
+./scripts/diagnose.sh            # collect compatibility diagnostics
+./scripts/recover_known_good.sh  # interactive recovery of the tested Spotify build
+./backup.sh                      # update portable themes/extensions/custom apps snapshot
+./restore.sh                     # interactively restore that snapshot
+./apply.sh                       # manually apply Spicetify
 ```
 
-The recovery script only accepts the pinned app commit and expected runtime. It prefers the exact Flathub commit; if unavailable, it can export a complete bundle from the system Flatpak repository only when that system app is at the exact same commit and its repository objects are readable. It never modifies the system Spotify installation. After recovery it masks normal user-scope updates for Spotify so the tested build is not silently replaced.
+Recovery only accepts the project's tested Spotify build. It uses a complete Flatpak bundle when exporting from the system installation, and never modifies the system Spotify installation. After recovery it masks normal user-scope updates for Spotify so the tested build is not silently replaced.
 
 ## Requirements
 
@@ -62,4 +62,4 @@ Linux (tested on Ubuntu), Flatpak, curl, Python 3, tar, unzip, awk, find, flock,
 
 Never commit Spotify prefs, credentials, cookies, tokens, the Flatpak app directory, or machine-specific state. Review `backup/profile/` before pushing: this repository is public, so committed customizations are publicly visible. Respect the licenses of third-party themes, extensions and custom apps.
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for the compatibility investigation and recovery details.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for troubleshooting steps and recovery details.
