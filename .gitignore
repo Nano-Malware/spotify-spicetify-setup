@@ -11,13 +11,10 @@ logs/
 *.swp
 *.swo
 
-# Never commit Spotify account/session data or local app state
+# Never commit Spotify account/session data
 prefs
 *.prefs
 .cookies
 *.token
 .env
 .env.*
-
-# Personal Spicetify customizations belong in a separate private repository.
-backup/profile/
