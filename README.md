@@ -53,7 +53,7 @@ gh run list --workflow build-spotify-1.2.52.yml --limit 5
 
 ## Storage and account data
 
-- Spotify app, runtime, Mesa extension, and Spicetify CLI: `/goinfre/$USER/spotify-spicetify` when writable and with at least 5 GiB free; otherwise `$HOME/.local/share/spotify-spicetify`.
+- Spotify app, runtime, Mesa extension, local Flatpak repository, and Spicetify CLI: `/goinfre/$USER/spotify-spicetify` when writable and with at least 5 GiB free; otherwise `$HOME/.local/share/spotify-spicetify`.
 - Spotify's profile and preferences remain under `~/.var/app/com.spotify.Client`. They may contain login/session data and are not copied or moved.
 - Goinfre may be cleaned by campus policy. Keep the Git repository in persistent storage.
 
