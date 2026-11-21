@@ -70,12 +70,13 @@ fi
 # Mesa 26.1 raised the AMD DRM minimum to 3.54; the known-compatible 24.08
 # extension used for this build is from the Mesa 25.x series.
 mesa_major_minor="${mesa_version%.*}"
-if [[ "$mesa_major_minor" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
-    mesa_major="${BASH_REMATCH[1]}"
-    mesa_minor="${BASH_REMATCH[2]}"
-    if (( mesa_major > 26 || (mesa_major == 26 && mesa_minor >= 1) )); then
-        die "Mesa $mesa_version is too new for this machine's AMD DRM 3.42. Refusing to launch with an incompatible graphics extension."
-    fi
+if [[ ! "$mesa_major_minor" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+    die "Could not safely parse the installed Mesa version: $mesa_version."
+fi
+mesa_major="${BASH_REMATCH[1]}"
+mesa_minor="${BASH_REMATCH[2]}"
+if (( mesa_major > 26 || (mesa_major == 26 && mesa_minor >= 1) )); then
+    die "Mesa $mesa_version is too new for this machine's AMD DRM 3.42. Refusing to launch with an incompatible graphics extension."
 fi
 info "Goinfre Mesa extension version: $mesa_version"
 
