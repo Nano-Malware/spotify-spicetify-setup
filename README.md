@@ -1,6 +1,6 @@
 # Spotify + Spicetify user-space launcher
 
-A minimal Ubuntu/Linux setup that runs Spotify with Spicetify from one command:
+A minimal Ubuntu/Linux setup that runs Spotify with Spicetify from:
 
 ```bash
 ./launch.sh
