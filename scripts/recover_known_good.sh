@@ -52,7 +52,7 @@ else
         SOURCE="system-bundle"
     else
         warn "The older tested Spotify build is not available from Flathub or a matching local system installation."
-        info "A fresh installation will use the current official Spotify stable build from Flathub."
+        info "A fresh installation will use the current Spotify stable package from Flathub from Flathub."
     fi
 fi
 
@@ -67,7 +67,7 @@ if [[ "${1:-}" != "--yes" ]]; then
             [[ -z "$answer" || "$answer" == [yY] ]] || { info "Installation cancelled."; exit 0; }
             ;;
         *)
-            read -r -p "Install the current official Spotify stable build from Flathub? [Y/n] " answer
+            read -r -p "Install the current Spotify stable package from Flathub from Flathub? [Y/n] " answer
             [[ -z "$answer" || "$answer" == [yY] ]] || { info "Installation cancelled."; exit 0; }
             ;;
     esac
@@ -95,7 +95,7 @@ case "$SOURCE" in
         ;;
     flathub-stable)
         if [[ "$CURRENT_COMMIT" == "not-installed" ]]; then
-            info "Installing the current official Spotify stable build and its runtime dependencies."
+            info "Installing the current Spotify stable package from Flathub and its runtime dependencies."
             flatpak install --user -y "$REMOTE" "$APP_ID"
         else
             info "Updating this user Spotify installation to the current Flathub stable build."
@@ -121,7 +121,7 @@ if [[ "$SOURCE" == "flathub-tested" || "$SOURCE" == "system-bundle" ]]; then
     ok "The tested Spotify build is installed and protected from automatic replacement."
 else
     # Do not mask the current stable branch: let Flatpak receive normal updates.
-    ok "The current official Spotify stable build is installed; normal updates remain enabled."
+    ok "The current Spotify stable package from Flathub is installed; normal updates remain enabled."
 fi
 
 APP_LOCATION="$(flatpak info --user --show-location "$APP_ID")"
