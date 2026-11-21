@@ -35,13 +35,16 @@ spotify_installed_version() {
 spotify_is_target_build() {
     local installed_version
     local installed_runtime
+    local installed_ref
 
     command -v flatpak >/dev/null 2>&1 || return 1
     installed_version="$(spotify_installed_version)" || return 1
     installed_runtime="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null)" || return 1
+    installed_ref="$(flatpak info --user --show-ref "$APP_ID" 2>/dev/null)" || return 1
 
     [[ "$installed_version" == "$TARGET_SPOTIFY_VERSION" &&
-       "$installed_runtime" == "$TARGET_SPOTIFY_RUNTIME" ]]
+       "$installed_runtime" == "$TARGET_SPOTIFY_RUNTIME" &&
+       "$installed_ref" == "app/com.spotify.Client/x86_64/stable" ]]
 }
 
 init_paths() {
