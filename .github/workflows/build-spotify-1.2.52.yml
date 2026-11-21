@@ -19,13 +19,16 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    env:
-      FLATPAK_USER_DIR: ${{ runner.temp }}/flatpak-user
     steps:
       - name: Install Flatpak build tools
         run: |
           sudo apt-get update
           sudo apt-get install --yes flatpak flatpak-builder elfutils git dbus-daemon python3
+
+      - name: Initialize isolated Flatpak user installation
+        run: |
+          echo "FLATPAK_USER_DIR=$RUNNER_TEMP/flatpak-user" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/flatpak-user"
 
       - name: Add Flathub and install the 24.08 build SDK
         run: |
