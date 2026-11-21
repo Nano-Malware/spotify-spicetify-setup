@@ -16,6 +16,7 @@ SPOTIFY_PATH="$(spotify_install_path)" || die "Could not determine Spotify's ins
 printf '\n'
 ok "Environment check passed."
 printf '  Spotify Flatpak: %s\n' "$(flatpak info --user --show-ref "$APP_ID")"
+printf '  Spotify origin:  %s\n' "$(flatpak info --user --show-origin "$APP_ID")"
 printf '  Spicetify:       %s\n' "$("$SPICETIFY_BIN" --version)"
 printf '  Install root:    %s\n' "$SETUP_DIR"
 printf '  Flatpak data:    %s\n' "$FLATPAK_USER_DIR"
