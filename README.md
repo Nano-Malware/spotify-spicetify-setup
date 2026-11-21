@@ -17,7 +17,7 @@ No sudo or administrator access is used.
 5. Installs the official Spicetify CLI if it is missing.
 6. Launches Spotify without modifying Spotify's application files.
 
-The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. The launcher does not create backups, restore customizations, install Marketplace, or apply themes/extensions. Spicetify is installed as a CLI only.
+The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. Spicetify is installed as a CLI only. The launcher does not install Marketplace or apply themes/extensions.
 
 The Flatpak wrapper is rebuilt by GitHub Actions from the historical Flathub packaging source. The proprietary Spotify payload is fetched directly from its original Snapcraft source during installation and verified using the SHA-256 recorded in the historical Flathub manifest. The Flathub packaging is community-maintained and is not verified by, affiliated with, or supported by Spotify.
 
