@@ -100,27 +100,31 @@ jobs:
           manifest = json.loads(manifest_path.read_text())
           found = False
 
+          patched = set()
+          target_modules = {"ayatana-ido", "libayatana-indicator"}
+
           def patch_modules(modules):
-              global found
               for module in modules:
                   if not isinstance(module, dict):
                       continue
-                  if module.get("name") == "ayatana-ido":
+                  name = module.get("name")
+                  if name in target_modules:
                       options = module.setdefault("config-opts", [])
                       flag = "-DCMAKE_INSTALL_LIBDIR=lib"
                       if flag not in options:
                           options.append(flag)
-                      found = True
+                      patched.add(name)
                   children = module.get("modules", [])
                   if isinstance(children, list):
                       patch_modules(children)
 
           patch_modules(manifest.get("modules", []))
-          if not found:
-              raise SystemExit("Could not find the ayatana-ido module in the pinned manifest.")
+          missing = target_modules - patched
+          if missing:
+              raise SystemExit("Missing expected modules in pinned manifest: " + ", ".join(sorted(missing)))
 
           manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-          print("Configured ayatana-ido to install pkg-config files under /app/lib/pkgconfig.")
+          print("Configured Ayatana dependencies to install pkg-config files under /app/lib/pkgconfig.")
           PY
 
       - name: Build the historical Flatpak
