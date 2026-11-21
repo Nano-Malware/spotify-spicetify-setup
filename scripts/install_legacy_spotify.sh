@@ -31,6 +31,7 @@ else
     if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
         die "Spotify is running. Close both system and Goinfre Spotify before replacing the user installation."
     fi
+    warn "Freedesktop 24.08 reached end of life in September 2026 and no longer receives normal security updates. This is an intentional compatibility pin."
 fi
 
 if ! flatpak remotes --user | awk 'NR > 1 {print $1}' | grep -Fxq flathub; then
