@@ -89,7 +89,7 @@ jobs:
           print(f"Snapcraft SHA-256: {source['sha256']}")
           PY
 
-      - name: Use the standard Flatpak library directory for Ayatana IDO
+      - name: Put all Ayatana libraries in the application library directory
         run: |
           python3 - "$RUNNER_TEMP/flathub-spotify/com.spotify.Client.json" <<'PY'
           import json
@@ -101,7 +101,7 @@ jobs:
           found = False
 
           patched = set()
-          target_modules = {"ayatana-ido", "libayatana-indicator"}
+          target_modules = {"ayatana-ido", "libayatana-indicator", "libayatana-appindicator"}
 
           def patch_modules(modules):
               for module in modules:
@@ -124,7 +124,7 @@ jobs:
               raise SystemExit("Missing expected modules in pinned manifest: " + ", ".join(sorted(missing)))
 
           manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-          print("Configured Ayatana dependencies to install pkg-config files under /app/lib/pkgconfig.")
+          print("Configured all Ayatana modules to install libraries and pkg-config files under /app/lib.")
           PY
 
       - name: Build the historical Flatpak
@@ -132,11 +132,30 @@ jobs:
           dbus-run-session -- flatpak-builder \
             --user \
             --install-deps-from=flathub \
+            --default-branch=stable \
             --force-clean \
             --disable-rofiles-fuse \
             --repo="$GITHUB_WORKSPACE/spotify-flatpak-repo" \
             "$RUNNER_TEMP/spotify-build" \
             "$RUNNER_TEMP/flathub-spotify/com.spotify.Client.json"
+
+      - name: Verify runtime library placement
+        run: |
+          APP_FILES="$RUNNER_TEMP/spotify-build/files"
+          for library in \
+            libayatana-ido3-0.4.so \
+            libayatana-indicator3.so \
+            libayatana-appindicator3.so; do
+            if [[ ! -e "$APP_FILES/lib/$library" ]]; then
+              echo "::error::Expected $library under /app/lib, matching LD_LIBRARY_PATH."
+              exit 1
+            fi
+            if [[ -e "$APP_FILES/lib64/$library" ]]; then
+              echo "::error::$library was also installed under /app/lib64."
+              exit 1
+            fi
+          done
+          echo "All Ayatana shared libraries are under /app/lib."
 
       - name: Create and smoke-test the single-file bundle
         run: |
@@ -155,6 +174,8 @@ jobs:
           RUNTIME="$(flatpak info --user --show-runtime com.spotify.Client)"
           test "$VERSION" = "1.2.52.442.g01893f92"
           test "$RUNTIME" = "org.freedesktop.Platform/x86_64/24.08"
+          REF="$(flatpak info --user --show-ref com.spotify.Client)"
+          test "$REF" = "app/com.spotify.Client/x86_64/stable"
           printf 'Verified installed Spotify version: %s\n' "$VERSION"
           printf 'Verified installed runtime: %s\n' "$RUNTIME"
 
