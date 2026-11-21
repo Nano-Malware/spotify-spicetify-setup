@@ -1,6 +1,6 @@
 # Spotify user-space launcher
 
-Install and launch Spotify with one command:
+Install and launch the compatible Spotify build with one command:
 
 ```bash
 ./launch.sh
@@ -11,13 +11,15 @@ No sudo or administrator access is used.
 ## What launch.sh does
 
 1. Selects a writable storage location and initializes the project-owned Flatpak user installation.
-2. Installs the project's tested Spotify build when available. On a fresh computer where that build cannot be obtained, it installs the current stable Spotify package from Flathub.
-3. Installs the official Spicetify CLI into the project-owned setup directory if it is missing.
-4. Launches Spotify without modifying Spotify's application files.
+2. Downloads and installs Spotify **1.2.52.442** from a verified Flatpak bundle built from the historical official Flathub packaging recipe.
+3. Installs the Freedesktop **24.08** runtime and its Mesa **24.08** GL extension into the project-owned Goinfre installation.
+4. Verifies the Spotify version, runtime, and Mesa version, then masks the Spotify app and Mesa extension to avoid incompatible automatic updates.
+5. Installs the official Spicetify CLI if it is missing.
+6. Launches Spotify without modifying Spotify's application files.
 
-The Spicetify CLI is installed and available for manual use, but this launcher intentionally leaves Spotify unmodified. It does not install Marketplace, apply themes, or activate extensions.
+The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. The launcher does not create backups, restore customizations, install Marketplace, or apply themes/extensions. Spicetify is installed as a CLI only.
 
-The Flathub Spotify package is community-maintained and is not verified by, affiliated with, or supported by Spotify. Normal Flatpak updates remain enabled for the current-stable fallback installation.
+The Flatpak wrapper is rebuilt by GitHub Actions from the historical Flathub packaging source. The proprietary Spotify payload is fetched directly from its original Snapcraft source during installation and verified using the SHA-256 recorded in the historical Flathub manifest. The Flathub packaging is community-maintained and is not verified by, affiliated with, or supported by Spotify.
 
 ## Install
 
@@ -31,28 +33,27 @@ cd spotify-spicetify-setup
 
 `install.sh` remains a backwards-compatible alias for `launch.sh`.
 
+The first installation downloads the old Spotify build and its 24.08 runtime/graphics extension. It may take several minutes and uses several gigabytes of Goinfre storage.
+
 ## Storage and account data
 
-- Flatpak app/runtime and Spicetify CLI: `/goinfre/$USER/spotify-spicetify` when writable and with at least 5 GiB free; otherwise `$HOME/.local/share/spotify-spicetify`.
+- Spotify app, runtime, Mesa extension, and Spicetify CLI: `/goinfre/$USER/spotify-spicetify` when writable and with at least 5 GiB free; otherwise `$HOME/.local/share/spotify-spicetify`.
 - Spotify's profile and preferences remain under `~/.var/app/com.spotify.Client`. They may contain login/session data and are not copied or moved.
 - Goinfre may be cleaned by campus policy. Keep the Git repository in persistent storage.
 
 ## Manual maintenance
 
 ```bash
-./scripts/diagnose.sh            # collect compatibility diagnostics
-./scripts/recover_known_good.sh  # install a Spotify build from Flathub when needed
-./scripts/recover_known_good.sh --system-copy  # copy this PC's working system Spotify into Goinfre
-./scripts/install_spicetify.sh   # install the official Spicetify CLI
+./scripts/diagnose.sh                 # collect compatibility diagnostics
+./scripts/install_legacy_spotify.sh   # install/verify the pinned compatible Spotify build
+./scripts/install_spicetify.sh        # install the official Spicetify CLI
 ```
 
-Spotify installation prefers the tested build when available, can export it from a matching readable system Flatpak repository, and otherwise installs the current Flathub stable release on a clean computer. It never modifies the system Spotify installation. Only the specifically tested pinned build is masked from updates; the current-stable fallback is left unmasked.
-
-When the system-installed Spotify on this same computer is the version you have confirmed works better, run `./scripts/recover_known_good.sh --system-copy` after closing Spotify. This exports the system app into a complete bundle, installs that exact app commit in the project's user Flatpak installation, verifies the commit and runtime match, and masks only the user copy from updates. The system installation is read-only and is not changed.
+The historical Spotify app and Mesa extension are masked in the project-owned user installation. This prevents an update from silently replacing the tested versions. The system-wide Spotify installation is never modified.
 
 ## Requirements
 
-Linux (tested on Ubuntu), Flatpak, curl, Python 3, tar, unzip, awk, flock, and at least 5 GiB free in the selected storage location. Network access to Flathub and GitHub is needed for first-time setup. This project does not install system packages or update glibc.
+Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, awk, grep, flock, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
 
 ## Security
 
