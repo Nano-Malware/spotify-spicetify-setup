@@ -12,15 +12,15 @@ No sudo or administrator access is used. The project keeps its Flatpak installat
 
 1. Selects a writable storage location and initializes the user Flatpak directory.
 2. Automatically snapshots your existing themes, extensions, custom apps and portable settings into `backup/profile/` before setup changes anything. This folder is ignored by the public repository.
-3. Checks whether Spotify is using the project's tested release and compatible Flatpak runtime.
-4. If recovery is needed, it first checks the trusted Flathub remote for that tested release. If the remote no longer provides it, the launcher can export the same release from an existing system Flatpak installation, provided the local Flatpak repository is readable. It stops rather than silently installing an untested version.
+3. Keeps an existing Spotify installation in the project-owned user Flatpak directory.
+4. On a fresh computer, prefers the project's tested Spotify build when it is still available. If that older build is no longer available and no matching local system copy exists, it installs the current official Spotify stable release from Flathub, including the runtime dependencies declared by the app.
 5. Installs the official Spicetify CLI if it is missing.
 6. Keeps Spicetify config and its vanilla backup in the selected setup directory.
 7. Creates a vanilla backup only when one is missing or does not match the installed Spotify version. A valid backup is never reset automatically.
 8. Restores the saved personal customizations into Spicetify's active config when they are not already present, then installs Marketplace if needed.
 9. Applies Spicetify only when the Spotify app is not already patched, verifies the result, and launches Spotify.
 
-The project uses a tested Spotify build instead of automatically switching to the newest release. This keeps the application and runtime combination predictable. The build identifier is an internal implementation detail; users do not need to find, enter, or change it.
+The project prefers its tested Spotify build when it can still be obtained. On a clean computer where that older build is no longer available, it falls back to the current official Flathub stable release instead of requiring an existing system Spotify installation. Normal Flatpak updates remain enabled for this fallback installation.
 
 The first run may open Spotify so you can sign in. Close it and run `./launch.sh` again to finish setup and start the customized app. If the user prefs do not exist yet, the launcher opens Spotify for profile creation and resumes setup on the next run.
 
@@ -53,7 +53,7 @@ cd spotify-spicetify-setup
 ./apply.sh                       # manually apply Spicetify
 ```
 
-Recovery only accepts the project's tested Spotify build. It uses a complete Flatpak bundle when exporting from the system installation, and never modifies the system Spotify installation. After recovery it masks normal user-scope updates for Spotify so the tested build is not silently replaced.
+Spotify installation prefers the tested build when available, can export it from a matching readable system Flatpak repository, and otherwise installs the current Flathub stable release on a clean computer. It never modifies the system Spotify installation. Only the specifically tested pinned build is masked from updates; a current-stable fallback receives normal Flatpak updates.
 
 ## Requirements
 
