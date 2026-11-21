@@ -115,7 +115,7 @@ jobs:
           if not found:
               raise SystemExit("Could not find the ayatana-ido module in the pinned manifest.")
 
-          manifest_path.write_text(json.dumps(manifest, indent=2) + "\\n")
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
           print("Configured ayatana-ido to install pkg-config files under /app/lib/pkgconfig.")
           PY
 
