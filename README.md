@@ -59,7 +59,17 @@ Before reporting a problem, run:
 
 It collects the Linux/kernel/glibc versions, Flatpak scope, Spotify versions and commits, Freedesktop runtimes, Mesa extension versions, selected Flatpak GL drivers, Goinfre/home storage usage, and Spicetify installation state. It does not print Spotify prefs contents, credentials, cookies, or session tokens.
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for the 42 Ubuntu/AMD compatibility investigation, known-good system Spotify baseline, command mistakes to avoid, and the recovery plan. The compatibility recovery is deliberately not automatic yet: the exact user-scope rollback source must be verified before replacing the currently installed Goinfre app.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for the 42 Ubuntu/AMD compatibility investigation, known-good system Spotify baseline, and recovery notes. To attempt the opt-in recovery of the exact known-good app build in Goinfre, run `./scripts/recover_known_good.sh`. It verifies whether Flathub still serves the pinned commit and otherwise attempts a local bundle export from the known-good system installation. It asks before changing the Goinfre app and never changes the system installation.
+
+## Compatibility recovery
+
+After running diagnostics and confirming that the system Spotify still works, you can attempt the pinned 24.08 recovery:
+
+```bash
+./scripts/recover_known_good.sh
+```
+
+The script checks the pinned app commit, prompts before changing the Goinfre installation, and verifies the deployed commit/runtime and writable app directory. It does not apply Spicetify automatically: first launch the user app and test login, playback, and rendering. Only then configure/apply Spicetify. The system installation is left untouched.
 
 ## Backup and restore
 
