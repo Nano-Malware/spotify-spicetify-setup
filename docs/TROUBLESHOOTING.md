@@ -109,7 +109,7 @@ The `--disable-gpu` launch-flag test did not resolve the user's visual problem, 
 1. Preserve any working system Spotify installation; the project never modifies it.
 2. Check whether the exact tested app commit is available from the project's user Flathub remote.
 3. If the tested commit is unavailable remotely, check whether a matching local system app and readable OSTree objects exist. If so, export a complete bundle (never use `--from-commit` for this cross-installation transfer).
-4. On a clean computer where neither source is available, install the current official Spotify stable app from Flathub. Flatpak resolves and installs the app's declared runtime dependencies as part of the install.
+4. On a clean computer where neither source is available, install the current community-maintained Spotify package from Flathub's stable branch. Flatpak resolves and installs the app's declared runtime dependencies as part of the install.
 5. Verify the deployed app commit, runtime, install path, and write permissions before Spicetify is allowed to patch it.
 6. Only the pinned tested build is masked from updates. The current-stable fallback is left unmasked so it continues receiving normal updates.
 7. Do not remove the existing system app, Spotify profile, or unrelated runtimes during recovery.
