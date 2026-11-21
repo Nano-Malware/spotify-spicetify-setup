@@ -4,8 +4,8 @@ set -Eeuo pipefail
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 APP_ID="com.spotify.Client"
-KNOWN_GOOD_SPOTIFY_COMMIT="d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366"
-KNOWN_GOOD_SPOTIFY_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
+TARGET_SPOTIFY_VERSION="1.2.52.442.g01893f92"
+TARGET_SPOTIFY_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
 FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
 SPICETIFY_RELEASES_URL="https://github.com/spicetify/cli/releases"
 
@@ -32,16 +32,16 @@ spotify_installed_version() {
         }'
 }
 
-spotify_is_known_good() {
-    local installed_commit
+spotify_is_target_build() {
+    local installed_version
     local installed_runtime
 
     command -v flatpak >/dev/null 2>&1 || return 1
-    installed_commit="$(flatpak info --user --show-commit "$APP_ID" 2>/dev/null)" || return 1
+    installed_version="$(spotify_installed_version)" || return 1
     installed_runtime="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null)" || return 1
 
-    [[ "$installed_commit" == "$KNOWN_GOOD_SPOTIFY_COMMIT" &&
-       "$installed_runtime" == "$KNOWN_GOOD_SPOTIFY_RUNTIME" ]]
+    [[ "$installed_version" == "$TARGET_SPOTIFY_VERSION" &&
+       "$installed_runtime" == "$TARGET_SPOTIFY_RUNTIME" ]]
 }
 
 init_paths() {
