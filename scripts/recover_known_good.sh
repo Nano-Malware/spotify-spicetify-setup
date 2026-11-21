@@ -52,7 +52,7 @@ else
         SOURCE="system-bundle"
     else
         warn "The older tested Spotify build is not available from Flathub or a matching local system installation."
-        info "A fresh installation will use the current Spotify stable package from Flathub from Flathub."
+        info "A fresh installation will use the current Spotify stable package from Flathub."
     fi
 fi
 
@@ -67,7 +67,7 @@ if [[ "${1:-}" != "--yes" ]]; then
             [[ -z "$answer" || "$answer" == [yY] ]] || { info "Installation cancelled."; exit 0; }
             ;;
         *)
-            read -r -p "Install the current Spotify stable package from Flathub from Flathub? [Y/n] " answer
+            read -r -p "Install the current Spotify stable package from Flathub? [Y/n] " answer
             [[ -z "$answer" || "$answer" == [yY] ]] || { info "Installation cancelled."; exit 0; }
             ;;
     esac
