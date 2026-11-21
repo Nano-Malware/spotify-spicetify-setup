@@ -4,6 +4,8 @@ set -Eeuo pipefail
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 APP_ID="com.spotify.Client"
+KNOWN_GOOD_SPOTIFY_COMMIT="d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366"
+KNOWN_GOOD_SPOTIFY_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
 FLATHUB_URL="https://flathub.org/repo/flathub.flatpakrepo"
 SPICETIFY_RELEASE_API="https://api.github.com/repos/spicetify/cli/releases/latest"
 MARKETPLACE_INSTALLER_URL="https://raw.githubusercontent.com/spicetify/marketplace/main/resources/install.sh"
@@ -15,6 +17,20 @@ die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1. Install it using your system's approved user-space method or ask your administrator."
+}
+
+# Return success only when the selected user Flatpak has the tested Spotify
+# commit and runtime. This check intentionally prints nothing.
+spotify_is_known_good() {
+    local installed_commit
+    local installed_runtime
+
+    command -v flatpak >/dev/null 2>&1 || return 1
+    installed_commit="$(flatpak info --user --show-commit "$APP_ID" 2>/dev/null)" || return 1
+    installed_runtime="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null)" || return 1
+
+    [[ "$installed_commit" == "$KNOWN_GOOD_SPOTIFY_COMMIT" && \
+       "$installed_runtime" == "$KNOWN_GOOD_SPOTIFY_RUNTIME" ]]
 }
 
 init_paths() {
