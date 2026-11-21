@@ -1,0 +1,164 @@
+name: Build historical Spotify 1.2.52.442 Flatpak
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-spotify-1.2.52.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-spotify-1.2.52
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      FLATPAK_USER_DIR: ${{ runner.temp }}/flatpak-user
+    steps:
+      - name: Install Flatpak build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes flatpak flatpak-builder elfutils git dbus-daemon python3
+
+      - name: Add Flathub and install the 24.08 build SDK
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive --assumeyes flathub \
+            org.freedesktop.Platform//24.08 \
+            org.freedesktop.Sdk//24.08
+
+      - name: Fetch the exact historical Flathub packaging recipe
+        env:
+          FLATHUB_RECIPE_COMMIT: 0187fe4fe523d8f1a3f41104c635fffbd4e6b09a
+        run: |
+          git clone https://github.com/flathub/com.spotify.Client.git "$RUNNER_TEMP/flathub-spotify"
+          git -C "$RUNNER_TEMP/flathub-spotify" checkout --detach "$FLATHUB_RECIPE_COMMIT"
+          git -C "$RUNNER_TEMP/flathub-spotify" submodule update --init --recursive
+          test "$(git -C "$RUNNER_TEMP/flathub-spotify" rev-parse HEAD)" = "$FLATHUB_RECIPE_COMMIT"
+
+      - name: Verify historical version, runtime, and official source checksum
+        run: |
+          python3 - "$RUNNER_TEMP/flathub-spotify" <<'PY'
+          import json
+          import pathlib
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root = pathlib.Path(sys.argv[1])
+          manifest = json.loads((root / "com.spotify.Client.json").read_text())
+          assert manifest["app-id"] == "com.spotify.Client"
+          assert manifest["runtime-version"] == "24.08"
+
+          appdata = ET.parse(root / "com.spotify.Client.appdata.xml").getroot()
+          versions = [item.attrib.get("version") for item in appdata.iter("release")]
+          expected_version = "1.2.52.442.g01893f92"
+          assert expected_version in versions, versions
+
+          def walk(value):
+              if isinstance(value, dict):
+                  yield value
+                  for child in value.values():
+                      yield from walk(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      yield from walk(child)
+
+          extra = [
+              source
+              for item in walk(manifest)
+              if item.get("name") == "spotify"
+              for source in item.get("sources", [])
+              if source.get("type") == "extra-data"
+          ]
+          assert len(extra) == 1, extra
+          source = extra[0]
+          assert source["url"].endswith("_82.snap"), source["url"]
+          assert source["sha256"] == "5fdd7ab8dba3c67685e4769a8300aa7fe7fbec13fa557d41ea4bad602b35188d"
+          assert source["size"] == 193589248
+          print(f"Verified Spotify {expected_version}, Freedesktop 24.08, Snap revision 82.")
+          print(f"Snapcraft SHA-256: {source['sha256']}")
+          PY
+
+      - name: Build the historical Flatpak
+        run: |
+          dbus-run-session -- flatpak-builder \
+            --user \
+            --install-deps-from=flathub \
+            --force-clean \
+            --disable-rofiles-fuse \
+            --repo="$GITHUB_WORKSPACE/spotify-flatpak-repo" \
+            "$RUNNER_TEMP/spotify-build" \
+            "$RUNNER_TEMP/flathub-spotify/com.spotify.Client.json"
+
+      - name: Create and smoke-test the single-file bundle
+        run: |
+          BUNDLE="$GITHUB_WORKSPACE/spotify-1.2.52.442.flatpak"
+          flatpak build-bundle \
+            --arch=x86_64 \
+            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            "$GITHUB_WORKSPACE/spotify-flatpak-repo" \
+            "$BUNDLE" com.spotify.Client stable
+
+          # Installing the bundle validates its embedded runtime reference and
+          # causes Flatpak to fetch/verify the pinned extra-data payload from Snapcraft.
+          flatpak install --user --noninteractive --assumeyes --bundle "$BUNDLE"
+
+          VERSION="$(flatpak info --user com.spotify.Client | awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}')"
+          RUNTIME="$(flatpak info --user --show-runtime com.spotify.Client)"
+          test "$VERSION" = "1.2.52.442.g01893f92"
+          test "$RUNTIME" = "org.freedesktop.Platform/x86_64/24.08"
+          printf 'Verified installed Spotify version: %s\n' "$VERSION"
+          printf 'Verified installed runtime: %s\n' "$RUNTIME"
+
+          cd "$GITHUB_WORKSPACE"
+          sha256sum spotify-1.2.52.442.flatpak > spotify-1.2.52.442.flatpak.sha256
+
+      - name: Upload the verified bundle for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotify-1.2.52.442-flatpak
+          path: |
+            spotify-1.2.52.442.flatpak
+            spotify-1.2.52.442.flatpak.sha256
+          if-no-files-found: error
+          retention-days: 2
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download verified bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: spotify-1.2.52.442-flatpak
+          path: release
+
+      - name: Publish the versioned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: spotify-1.2.52.442
+        run: |
+          gh --version
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              release/spotify-1.2.52.442.flatpak \
+              release/spotify-1.2.52.442.flatpak.sha256 \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              release/spotify-1.2.52.442.flatpak \
+              release/spotify-1.2.52.442.flatpak.sha256 \
+              --title "Spotify 1.2.52.442 — historical Flathub build" \
+              --notes "Rebuilt from flathub/com.spotify.Client at commit 0187fe4fe523d8f1a3f41104c635fffbd4e6b09a. Uses Freedesktop 24.08. The proprietary Spotify payload is fetched from the original Snapcraft URL during installation and validated against the SHA-256 published in the historical Flathub manifest." \
+              --target "$GITHUB_SHA"
+          fi
