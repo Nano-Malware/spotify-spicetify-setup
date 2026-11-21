@@ -26,9 +26,11 @@ flock -n 9 || die "Another Spotify setup/launch process is already running."
 # their Spicetify config. The snapshot is ignored by this public repository.
 "$PROJECT_DIR/backup.sh"
 
-if ! spotify_is_known_good; then
-    info "The Goinfre Spotify is missing or not the tested build; recovering the pinned build."
+if ! spotify_is_installed; then
+    info "Spotify is not installed in this project's user Flatpak directory."
     "$PROJECT_DIR/scripts/recover_known_good.sh" --yes
+else
+    info "Found a user-installed Spotify build: $(flatpak info --user --show-version "$APP_ID")"
 fi
 
 ensure_user_spotify_installed
