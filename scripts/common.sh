@@ -81,7 +81,9 @@ spicetify_has_backup() {
     spotify_version="$(awk -F= '$1 == "app.last-launched-version" {sub(/^[^=]*=/, ""); print; exit}' "$PREFS_PATH")"
     [[ -n "$backup_version" && "$backup_version" == "$spotify_version" ]] || return 1
 
-    backup_file="$(find "$SPICETIFY_BACKUP_DIR" -maxdepth 1 -type f -name '*.spa' -print -quit 2>/dev/null)"
+    # Spicetify keeps app archives in subdirectories such as Backup/Apps/.
+    # Search recursively so a real backup is not mistaken for a missing one.
+    backup_file="$(find "$SPICETIFY_BACKUP_DIR" -type f -name '*.spa' -print -quit 2>/dev/null)"
     [[ -n "$backup_file" ]]
 }
 
