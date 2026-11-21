@@ -80,8 +80,12 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
     trap 'rm -rf -- "$TMP_DIR"' EXIT
 
     info "Downloading the verified Spotify $TARGET_VERSION Flatpak bundle..."
-    curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$BUNDLE_NAME" -o "$TMP_DIR/$BUNDLE_NAME"
-    curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$CHECKSUM_NAME" -o "$TMP_DIR/$CHECKSUM_NAME"
+    if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$BUNDLE_NAME" -o "$TMP_DIR/$BUNDLE_NAME"; then
+        die "The Spotify $TARGET_VERSION bundle is not available yet. Check that the GitHub Actions build workflow completed successfully: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
+    fi
+    if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$CHECKSUM_NAME" -o "$TMP_DIR/$CHECKSUM_NAME"; then
+        die "The Spotify bundle checksum is not available. Check the GitHub Actions build workflow."
+    fi
 
     (
         cd "$TMP_DIR"
