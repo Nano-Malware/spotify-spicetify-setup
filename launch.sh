@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Single entry point: install/check Spotify and launch it without patching files.
+# Single entry point: install the compatible Spotify build, then launch it.
 set -Eeuo pipefail
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -13,29 +13,29 @@ init_paths
 require_command flatpak
 require_command flock
 require_command curl
-require_command python3
-require_command tar
-require_command unzip
+require_command sha256sum
 require_command awk
+require_command grep
 
-# Prevent two launcher processes from changing the same user installation.
+# Prevent two setup/launch processes from modifying the same user installation.
 exec 9>"$SETUP_DIR/.launch.lock"
 flock -n 9 || die "Another Spotify setup/launch process is already running."
 
-if ! spotify_is_installed; then
-    info "Spotify is not installed in this project's user Flatpak directory."
-    "$PROJECT_DIR/scripts/recover_known_good.sh" --yes
+if spotify_is_installed; then
+    info "Current Goinfre Spotify: $(spotify_installed_version || printf unknown)"
 else
-    SPOTIFY_VERSION="$(spotify_installed_version || true)"
-    info "Found user-installed Spotify${SPOTIFY_VERSION:+ version $SPOTIFY_VERSION}."
+    info "Spotify is not installed in the project-owned user Flatpak directory."
 fi
 
+# This is idempotent: it installs the pinned historical build only when needed,
+# ensures its 24.08 runtime/Mesa extension, verifies it, and masks app updates.
+"$PROJECT_DIR/scripts/install_legacy_spotify.sh"
 ensure_user_spotify_installed
 
-# Keep the official CLI available, but do not modify Spotify's application files.
+# Keep the official Spicetify CLI available, but leave Spotify unpatched.
 if [[ ! -x "$SPICETIFY_BIN" ]]; then
     "$PROJECT_DIR/scripts/install_spicetify.sh"
 fi
 
-ok "Spotify is ready. Launching the unmodified Spotify client."
+ok "Launching Spotify $TARGET_SPOTIFY_VERSION from the Goinfre user installation."
 exec flatpak run --user "$APP_ID" "$@"
