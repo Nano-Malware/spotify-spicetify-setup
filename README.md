@@ -38,7 +38,7 @@ chmod +x install.sh launch.sh backup.sh restore.sh scripts/*.sh
 ./install.sh
 ```
 
-The installer records the selected local storage path in `.setup-dir`, which is ignored by Git. It will ask you to log in to Spotify and close Spotify before applying Spicetify when needed.
+The installer records the selected local storage path in `.setup-dir`, It will ask you to log in to Spotify and close Spotify before applying Spicetify when needed.
 
 Launch the customized per-user Spotify installation with:
 
