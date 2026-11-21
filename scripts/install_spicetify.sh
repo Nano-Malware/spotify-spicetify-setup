@@ -10,6 +10,9 @@ require_command curl
 require_command python3
 require_command tar
 require_command find
+require_command install
+require_command cp
+require_command chmod
 
 FORCE_UPDATE="${1:-}"
 if [[ -x "$SPICETIFY_BIN" && "$FORCE_UPDATE" != "--update" ]]; then
@@ -28,45 +31,55 @@ esac
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-info "Checking the latest official Spicetify CLI release..."
-curl -fsSL "$SPICETIFY_RELEASE_API" -o "$TMP_DIR/release.json"
-RELEASE_LINE="$(python3 - "$TMP_DIR/release.json" "$RELEASE_ARCH" <<'PY'
+RELEASE_VERSION=""
+if curl -fsSL -H 'Accept: application/json' \
+    "$SPICETIFY_RELEASES_URL/latest" -o "$TMP_DIR/release.json"; then
+    RELEASE_VERSION="$(python3 - "$TMP_DIR/release.json" <<'PY'
 import json
+import re
 import sys
 
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    release = json.load(handle)
-arch = sys.argv[2]
-needle = f"linux-{arch}.tar.gz"
-assets = [item for item in release.get("assets", []) if item.get("name", "").endswith(needle)]
-if not assets:
-    raise SystemExit(f"No official Linux {arch} tar.gz asset found in the latest release.")
-print(release.get("tag_name", ""))
-print(assets[0].get("browser_download_url", ""))
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as handle:
+        release = json.load(handle)
+    tag = release.get("tag_name", "")
+    match = re.fullmatch(r"v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)", tag)
+    if match:
+        print(match.group(1))
+except (OSError, ValueError, TypeError):
+    pass
 PY
-)" || die "Could not identify a matching Spicetify release asset."
-RELEASE_TAG="$(printf '%s\n' "$RELEASE_LINE" | sed -n '1p')"
-ASSET_URL="$(printf '%s\n' "$RELEASE_LINE" | sed -n '2p')"
-[[ -n "$RELEASE_TAG" && "$ASSET_URL" == https://github.com/spicetify/cli/releases/download/* ]] || die "The Spicetify release metadata was incomplete."
+)" || true
+fi
 
-info "Downloading Spicetify $RELEASE_TAG for Linux $RELEASE_ARCH..."
+# GitHub's API can rate-limit unauthenticated campus connections. The official
+# Spicetify project installer also resolves releases through GitHub's releases
+# page rather than requiring the REST API. Keep a verified current release as
+# a last-resort fallback so a temporary API/page failure does not brick setup.
+if [[ -z "$RELEASE_VERSION" ]]; then
+    RELEASE_VERSION="2.46.7"
+    warn "Could not resolve the latest Spicetify release; using the last verified stable release v$RELEASE_VERSION."
+fi
+
+ASSET_URL="$SPICETIFY_RELEASES_URL/download/v$RELEASE_VERSION/spicetify-$RELEASE_VERSION-linux-$RELEASE_ARCH.tar.gz"
+info "Downloading Spicetify v$RELEASE_VERSION for Linux $RELEASE_ARCH..."
 curl -fL --retry 3 "$ASSET_URL" -o "$TMP_DIR/spicetify.tar.gz"
+
 mkdir -p "$TMP_DIR/unpacked"
 tar -xzf "$TMP_DIR/spicetify.tar.gz" -C "$TMP_DIR/unpacked"
 BINARY="$(find "$TMP_DIR/unpacked" -type f -name spicetify -print -quit)"
-[[ -n "$BINARY" && -f "$BINARY" ]] || die "The downloaded archive did not contain the Spicetify executable."
+[[ -n "$BINARY" && -f "$BINARY" ]] || die "The official Spicetify archive did not contain the executable."
 
-# Spicetify requires jsHelper support files beside the executable at runtime.
-# Copying only the binary causes apply errors for homeConfig.js and expFeatures.js.
-HELPER_DIR="$(find "$TMP_DIR/unpacked" -type d -name jsHelper -print -quit)"
-[[ -n "$HELPER_DIR" && -d "$HELPER_DIR" ]] || die "The official archive did not contain the required jsHelper directory."
-for helper in homeConfig.js expFeatures.js; do
-    [[ -s "$HELPER_DIR/$helper" ]] || die "The official jsHelper directory is missing $helper."
-done
-
-install -m 0755 "$BINARY" "$SPICETIFY_BIN"
+# Install the entire official package, not just its executable. This preserves
+# any companion files (including jsHelper, when present) beside the CLI.
+mkdir -p "$BIN_DIR"
+rm -f -- "$SPICETIFY_BIN"
 rm -rf -- "$BIN_DIR/jsHelper"
-cp -a "$HELPER_DIR" "$BIN_DIR/jsHelper"
+cp -a "$TMP_DIR/unpacked/." "$BIN_DIR/"
+if [[ ! -x "$SPICETIFY_BIN" ]]; then
+    install -m 0755 "$BINARY" "$SPICETIFY_BIN"
+fi
+chmod 0755 "$SPICETIFY_BIN"
 
-ok "Installed Spicetify and jsHelper support files to $BIN_DIR"
+ok "Installed Spicetify and its companion files to $BIN_DIR"
 "$SPICETIFY_BIN" --version
