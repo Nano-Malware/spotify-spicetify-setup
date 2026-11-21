@@ -157,38 +157,43 @@ jobs:
           done
           echo "All Ayatana shared libraries are under /app/lib."
 
-      - name: Create and smoke-test the single-file bundle
+      - name: Generate and smoke-test the Flatpak repository
         run: |
-          BUNDLE="$GITHUB_WORKSPACE/spotify-1.2.52.442.flatpak"
-          flatpak build-bundle \
-            --arch=x86_64 \
-            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-            "$GITHUB_WORKSPACE/spotify-flatpak-repo" \
-            "$BUNDLE" com.spotify.Client stable
+          REPO="$GITHUB_WORKSPACE/spotify-flatpak-repo"
+          flatpak build-update-repo "$REPO"
+          test -s "$REPO/summary"
 
-          # Installing the bundle validates its embedded runtime reference and
-          # causes Flatpak to fetch/verify the pinned extra-data payload from Snapcraft.
-          flatpak install --user --noninteractive --assumeyes --bundle "$BUNDLE"
+          flatpak remote-add --user --no-gpg-verify spotify-legacy "file://$REPO"
+          REF="$(flatpak remote-info --user --show-ref spotify-legacy com.spotify.Client//stable)"
+          test "$REF" = "app/com.spotify.Client/x86_64/stable"
+
+          METADATA="$(flatpak remote-info --user --show-metadata spotify-legacy com.spotify.Client//stable)"
+          printf '%s\\n' "$METADATA" | grep -q '^\\[Extra Data\\]$'
+
+          flatpak install --user --noninteractive --assumeyes spotify-legacy com.spotify.Client//stable
 
           VERSION="$(flatpak info --user com.spotify.Client | awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}')"
           RUNTIME="$(flatpak info --user --show-runtime com.spotify.Client)"
+          INSTALLED_REF="$(flatpak info --user --show-ref com.spotify.Client)"
           test "$VERSION" = "1.2.52.442.g01893f92"
           test "$RUNTIME" = "org.freedesktop.Platform/x86_64/24.08"
-          REF="$(flatpak info --user --show-ref com.spotify.Client)"
-          test "$REF" = "app/com.spotify.Client/x86_64/stable"
-          printf 'Verified installed Spotify version: %s\n' "$VERSION"
-          printf 'Verified installed runtime: %s\n' "$RUNTIME"
+          test "$INSTALLED_REF" = "app/com.spotify.Client/x86_64/stable"
+          printf 'Verified Spotify version: %s\\n' "$VERSION"
+          printf 'Verified runtime: %s\\n' "$RUNTIME"
+          printf 'Verified ref: %s\\n' "$INSTALLED_REF"
 
           cd "$GITHUB_WORKSPACE"
-          sha256sum spotify-1.2.52.442.flatpak > spotify-1.2.52.442.flatpak.sha256
+          tar -czf spotify-1.2.52.442-repo.tar.gz -C "$GITHUB_WORKSPACE" spotify-flatpak-repo
+          tar -tzf spotify-1.2.52.442-repo.tar.gz | grep -q '^spotify-flatpak-repo/summary$'
+          sha256sum spotify-1.2.52.442-repo.tar.gz > spotify-1.2.52.442-repo.tar.gz.sha256
 
-      - name: Upload the verified bundle for publishing
+      - name: Upload the verified repository archive for publishing
         uses: actions/upload-artifact@v4
         with:
-          name: spotify-1.2.52.442-flatpak
+          name: spotify-1.2.52.442-repo
           path: |
-            spotify-1.2.52.442.flatpak
-            spotify-1.2.52.442.flatpak.sha256
+            spotify-1.2.52.442-repo.tar.gz
+            spotify-1.2.52.442-repo.tar.gz.sha256
           if-no-files-found: error
           retention-days: 2
 
@@ -199,10 +204,10 @@ jobs:
       contents: write
       actions: read
     steps:
-      - name: Download verified bundle
+      - name: Download verified Flatpak repository archive
         uses: actions/download-artifact@v4
         with:
-          name: spotify-1.2.52.442-flatpak
+          name: spotify-1.2.52.442-repo
           path: release
 
       - name: Publish the versioned release
@@ -213,16 +218,16 @@ jobs:
           gh --version
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" \
-              release/spotify-1.2.52.442.flatpak \
-              release/spotify-1.2.52.442.flatpak.sha256 \
+              release/spotify-1.2.52.442-repo.tar.gz \
+              release/spotify-1.2.52.442-repo.tar.gz.sha256 \
               --clobber \
               --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$RELEASE_TAG" \
-              release/spotify-1.2.52.442.flatpak \
-              release/spotify-1.2.52.442.flatpak.sha256 \
-              --title "Spotify 1.2.52.442 — historical Flathub build" \
-              --notes "Rebuilt from flathub/com.spotify.Client at commit 0187fe4fe523d8f1a3f41104c635fffbd4e6b09a. Uses Freedesktop 24.08. The proprietary Spotify payload is fetched from the original Snapcraft URL during installation and validated against the SHA-256 published in the historical Flathub manifest." \
+              release/spotify-1.2.52.442-repo.tar.gz \
+              release/spotify-1.2.52.442-repo.tar.gz.sha256 \
+              --title "Spotify 1.2.52.442 — verified historical Flatpak repository" \
+              --notes "Built from flathub/com.spotify.Client at commit 0187fe4fe523d8f1a3f41104c635fffbd4e6b09a. Uses Freedesktop 24.08. This is an OSTree repository archive, not a single-file .flatpak bundle, because this application uses Flatpak extra-data metadata. The proprietary Spotify payload is fetched from the original Snapcraft URL during installation and validated against the SHA-256 in the historical Flathub manifest." \
               --target "$GITHUB_SHA" \
               --repo "$GITHUB_REPOSITORY"
           fi
