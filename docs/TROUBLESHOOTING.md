@@ -106,13 +106,13 @@ The `--disable-gpu` launch-flag test did not resolve the user's visual problem, 
 
 ## Recovery strategy
 
-1. Preserve the working system Spotify installation.
-2. Check whether the exact known-good app commit is still available from the user's Flathub remote using `flatpak remote-info --user --commit=COMMIT flathub com.spotify.Client`.
-3. If the remote no longer serves the commit, verify that the system app is exactly the known-good commit and export it from `/var/lib/flatpak/repo` as a complete bundle (never use `--from-commit` for this cross-installation transfer).
-4. Install the app bundle into the Goinfre-backed user installation. Its runtime must be installed there as a separate dependency. The app manifest must continue to declare runtime 24.08.
-5. Verify the deployed app commit and runtime, inspect the graphics extension from inside the sandbox, then confirm the app directory is writable.
-6. Only after the app launches and renders correctly should Spicetify backup/apply be run.
-7. Do not remove the existing user app, system app, profile, or Mesa runtimes until the recovered copy has been tested successfully.
+1. Preserve any working system Spotify installation; the project never modifies it.
+2. Check whether the exact tested app commit is available from the project's user Flathub remote.
+3. If the tested commit is unavailable remotely, check whether a matching local system app and readable OSTree objects exist. If so, export a complete bundle (never use `--from-commit` for this cross-installation transfer).
+4. On a clean computer where neither source is available, install the current official Spotify stable app from Flathub. Flatpak resolves and installs the app's declared runtime dependencies as part of the install.
+5. Verify the deployed app commit, runtime, install path, and write permissions before Spicetify is allowed to patch it.
+6. Only the pinned tested build is masked from updates. The current-stable fallback is left unmasked so it continues receiving normal updates.
+7. Do not remove the existing system app, Spotify profile, or unrelated runtimes during recovery.
 
 ## Safe diagnostic command
 
