@@ -6,7 +6,7 @@ PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 APP_ID="com.spotify.Client"
 KNOWN_GOOD_SPOTIFY_COMMIT="d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366"
 KNOWN_GOOD_SPOTIFY_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
-FLATHUB_URL="https://flathub.org/repo/flathub.flatpakrepo"
+FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
 SPICETIFY_RELEASE_API="https://api.github.com/repos/spicetify/cli/releases/latest"
 MARKETPLACE_INSTALLER_URL="https://raw.githubusercontent.com/spicetify/marketplace/main/resources/install.sh"
 
