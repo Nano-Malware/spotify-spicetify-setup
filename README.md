@@ -47,7 +47,7 @@ cd spotify-spicetify-setup
 ```bash
 ./scripts/diagnose.sh            # collect compatibility diagnostics
 ./scripts/recover_known_good.sh  # interactive recovery of the tested Spotify build
-./backup.sh                      # update portable themes/extensions/custom apps snapshot
+./backup.sh                      # create/update the local private customization backup
 ./restore.sh                     # interactively restore that snapshot
 ./apply.sh                       # manually apply Spicetify
 ```
