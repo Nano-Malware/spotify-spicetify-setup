@@ -12,7 +12,7 @@ No sudo or administrator access is needed on the user's machine. The separate Gi
 
 1. Selects a writable storage location and initializes the project-owned Flatpak user installation.
 2. Downloads and installs Spotify **1.2.52.442** from a checksum-verified Flatpak repository archive built from the historical official Flathub packaging recipe.
-3. Installs the Freedesktop **24.08** runtime into the project-owned Goinfre installation. For graphics, it exports the exact Mesa **25.2.6** `24.08` and `24.08extra` commits from the existing system Flatpak installation into temporary local bundles, rather than downloading the newer incompatible Flathub branch.
+3. Installs the Freedesktop **24.08** runtime into the project-owned Goinfre installation. For graphics, it verifies the existing system Mesa **25.2.6** `24.08` and `24.08extra` deployments, re-exports their installed files and metadata into temporary local runtime bundles, and pins the resulting commits in Goinfre. It does not download the newer incompatible Flathub Mesa branch or modify system Flatpak.
 4. Verifies the Spotify version, runtime, and Mesa version, then masks the Spotify app and Mesa extension to avoid incompatible automatic updates.
 5. Installs the official Spicetify CLI if it is missing.
 6. Launches Spotify without modifying Spotify's application files.
