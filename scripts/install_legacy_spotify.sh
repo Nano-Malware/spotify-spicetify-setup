@@ -44,48 +44,114 @@ if ! flatpak remotes --user --columns=name | grep -Fxq flathub; then
     flatpak remote-add --user --if-not-exists flathub "$FLATHUB_URL"
 fi
 
-# Install the older runtime and matching Mesa extensions into Goinfre rather
-# than relying on whatever graphics extension happens to be installed system-wide.
+# The Flathub 24.08 branch now points to Mesa 26.1.x, which is too new
+# for this machine's AMD DRM 3.42. Seed the exact known-good 25.2.6 refs
+# from the existing system installation, without modifying that installation.
 MESA_EXTRA_REF="org.freedesktop.Platform.GL.default//24.08extra"
+MESA_VERSION="25.2.6"
+MESA_COMMIT="e7cca7bcddd35029a6cb5720367f49255a6be3d338eaf1e7a57945cbe84e03ec"
+MESA_EXTRA_COMMIT="765326f0e2abc4b69240f4283bb2437b04d468ce2377cf716d05b3d71a8e646e"
+MESA_FULL_REF="runtime/org.freedesktop.Platform.GL.default/x86_64/24.08"
+MESA_EXTRA_FULL_REF="runtime/org.freedesktop.Platform.GL.default/x86_64/24.08extra"
+FLATHUB_REPO_URL="https://dl.flathub.org/repo/"
+TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
+FLATHUB_REDIRECTED=0
+PRESERVE_TMP_DIR=0
+
+cleanup() {
+    if [[ "$FLATHUB_REDIRECTED" == "1" ]]; then
+        if flatpak remote-modify --user --url="$FLATHUB_REPO_URL" --gpg-verify flathub; then
+            FLATHUB_REDIRECTED=0
+        else
+            warn "Could not restore the Flathub URL. Keeping the temporary Mesa source at $TMP_DIR."
+            PRESERVE_TMP_DIR=1
+        fi
+    fi
+    if [[ -n "$TMP_DIR" && -d "$TMP_DIR" && "$PRESERVE_TMP_DIR" == "0" ]]; then
+        rm -rf -- "$TMP_DIR"
+    fi
+}
+trap cleanup EXIT
+
 info "Ensuring Freedesktop 24.08 is installed in Goinfre."
 if ! flatpak info --user "$RUNTIME_REF" >/dev/null 2>&1; then
     flatpak install --user --noninteractive --assumeyes flathub "$RUNTIME_REF"
 fi
 
-info "Ensuring the Mesa 24.08 GL extension is installed in Goinfre."
-if ! flatpak info --user "$MESA_REF" >/dev/null 2>&1; then
+project_mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true)"
+project_mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
+
+if [[ "$project_mesa_commit" == "$MESA_COMMIT" && "$project_mesa_extra_commit" == "$MESA_EXTRA_COMMIT" ]]; then
+    info "The project-owned installation already has the pinned Mesa $MESA_VERSION pair."
+else
+    system_mesa_version="$(flatpak --system info "$MESA_REF" 2>/dev/null |
+        awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}' || true)"
+    system_mesa_extra_version="$(flatpak --system info "$MESA_EXTRA_REF" 2>/dev/null |
+        awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}' || true)"
+    system_mesa_commit="$(flatpak --system info --show-commit "$MESA_REF" 2>/dev/null || true)"
+    system_mesa_extra_commit="$(flatpak --system info --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
+
+    if [[ "$system_mesa_version" != "$MESA_VERSION" ||
+          "$system_mesa_extra_version" != "$MESA_VERSION" ||
+          "$system_mesa_commit" != "$MESA_COMMIT" ||
+          "$system_mesa_extra_commit" != "$MESA_EXTRA_COMMIT" ]]; then
+        die "The exact compatible Mesa $MESA_VERSION pair is not installed in the system Flatpak installation. Refusing to use Flathub's newer Mesa branch. System versions: \${system_mesa_version:-missing}/\${system_mesa_extra_version:-missing}."
+    fi
+
+    MESA_SEED_MOUNT="$TMP_DIR/mesa-seed"
+    mkdir -p "$MESA_SEED_MOUNT"
+    info "Copying the already-installed system Mesa $MESA_VERSION refs into a temporary local seed repository."
+    flatpak create-usb --system "$MESA_SEED_MOUNT" "$MESA_FULL_REF" "$MESA_EXTRA_FULL_REF"
+    MESA_SEED_REPO="$MESA_SEED_MOUNT/.ostree/repo"
+    [[ -f "$MESA_SEED_REPO/config" && -s "$MESA_SEED_REPO/summary" && -d "$MESA_SEED_REPO/objects" ]] ||
+        die "Could not create a usable local seed repository from the system Mesa installation."
+
+    info "Temporarily directing the Goinfre Flathub remote to the verified local Mesa seed."
+    flatpak remote-modify --user --no-gpg-verify --url="file://$MESA_SEED_REPO" flathub
+    FLATHUB_REDIRECTED=1
+
+    seeded_mesa_commit="$(flatpak remote-info --user --show-commit flathub "$MESA_REF")"
+    seeded_extra_commit="$(flatpak remote-info --user --show-commit flathub "$MESA_EXTRA_REF")"
+    [[ "$seeded_mesa_commit" == "$MESA_COMMIT" ]] ||
+        die "The local seed has an unexpected Mesa commit: $seeded_mesa_commit"
+    [[ "$seeded_extra_commit" == "$MESA_EXTRA_COMMIT" ]] ||
+        die "The local seed has an unexpected Mesa extra commit: $seeded_extra_commit"
+
     flatpak mask --user --remove "$MESA_REF" >/dev/null 2>&1 || true
-    flatpak install --user --noninteractive --assumeyes flathub "$MESA_REF"
-fi
-if flatpak remote-info --user flathub "$MESA_EXTRA_REF" >/dev/null 2>&1 &&
-   ! flatpak info --user "$MESA_EXTRA_REF" >/dev/null 2>&1; then
     flatpak mask --user --remove "$MESA_EXTRA_REF" >/dev/null 2>&1 || true
-    flatpak install --user --noninteractive --assumeyes flathub "$MESA_EXTRA_REF"
+
+    if [[ -n "$project_mesa_commit" ]]; then
+        info "Pinning the installed Mesa GL extension to the verified 25.2.6 commit."
+        flatpak update --user --noninteractive --assumeyes --commit="$MESA_COMMIT" "$MESA_REF"
+    else
+        flatpak install --user --noninteractive --assumeyes flathub "$MESA_REF"
+    fi
+
+    if [[ -n "$project_mesa_extra_commit" ]]; then
+        info "Pinning the installed Mesa extra extension to the verified 25.2.6 commit."
+        flatpak update --user --noninteractive --assumeyes --commit="$MESA_EXTRA_COMMIT" "$MESA_EXTRA_REF"
+    else
+        flatpak install --user --noninteractive --assumeyes flathub "$MESA_EXTRA_REF"
+    fi
+
+    flatpak remote-modify --user --url="$FLATHUB_REPO_URL" --gpg-verify flathub
+    FLATHUB_REDIRECTED=0
 fi
 
 mesa_version="$(flatpak info --user "$MESA_REF" 2>/dev/null |
     awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}')"
-if [[ -z "$mesa_version" ]]; then
-    die "The Mesa 24.08 GL extension could not be verified in the Goinfre installation."
-fi
+mesa_extra_version="$(flatpak info --user "$MESA_EXTRA_REF" 2>/dev/null |
+    awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}')"
+mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true)"
+mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
 
-# Mesa 26.1 raised the AMD DRM minimum to 3.54; the known-compatible 24.08
-# extension used for this build is from the Mesa 25.x series.
-mesa_major_minor="${mesa_version%.*}"
-if [[ ! "$mesa_major_minor" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
-    die "Could not safely parse the installed Mesa version: $mesa_version."
-fi
-mesa_major="${BASH_REMATCH[1]}"
-mesa_minor="${BASH_REMATCH[2]}"
-if (( mesa_major > 26 || (mesa_major == 26 && mesa_minor >= 1) )); then
-    die "Mesa $mesa_version is too new for this machine's AMD DRM 3.42. Refusing to launch with an incompatible graphics extension."
-fi
-info "Goinfre Mesa extension version: $mesa_version"
+[[ "$mesa_version" == "$MESA_VERSION" && "$mesa_extra_version" == "$MESA_VERSION" ]] ||
+    die "Mesa version verification failed. Expected $MESA_VERSION for both 24.08 GL extensions; found \${mesa_version:-missing}/\${mesa_extra_version:-missing}."
+[[ "$mesa_commit" == "$MESA_COMMIT" && "$mesa_extra_commit" == "$MESA_EXTRA_COMMIT" ]] ||
+    die "Mesa commit verification failed. The pinned 25.2.6 commits are not active."
 
+info "Verified Goinfre Mesa $mesa_version / $mesa_extra_version and both exact commits."
 if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_RUNTIME" || "$current_ref" != "$TARGET_REF" ]]; then
-    TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
-    trap 'rm -rf -- "$TMP_DIR"' EXIT
-
     info "Downloading the verified Spotify $TARGET_VERSION repository archive..."
     if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
         die "The Spotify $TARGET_VERSION repository archive is not available yet. Check the GitHub Actions build workflow: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
