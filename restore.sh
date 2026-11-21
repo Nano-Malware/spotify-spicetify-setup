@@ -9,9 +9,11 @@ require_spicetify
 SNAPSHOT_DIR="$PROJECT_DIR/backup/profile"
 [[ -d "$SNAPSHOT_DIR" ]] || die "No backup/profile directory found in this repository."
 
-printf 'This will replace your current Spicetify Themes, Extensions, CustomApps, and config with the repository snapshot.\n'
-read -r -p "Continue? [y/N] " answer
-[[ "$answer" == [yY] ]] || { info "Restore cancelled."; exit 0; }
+if [[ "${1:-}" != "--yes" ]]; then
+    printf 'This replaces your current Themes, Extensions, CustomApps and portable settings. The live vanilla [Backup] section is preserved.\n'
+    read -r -p "Continue? [y/N] " answer
+    [[ "$answer" == [yY] ]] || { info "Restore cancelled."; exit 0; }
+fi
 
 mkdir -p "$SPICETIFY_CONFIG_DIR"
 for name in Themes Extensions CustomApps; do
@@ -26,14 +28,26 @@ for name in Themes Extensions CustomApps; do
 done
 
 if [[ -f "$SNAPSHOT_DIR/config-xpui.ini" ]]; then
-    cp "$SNAPSHOT_DIR/config-xpui.ini" "$SPICETIFY_CONFIG_FILE"
+    tmp_config="$(mktemp "$SPICETIFY_CONFIG_DIR/config-xpui.ini.XXXXXX")"
+    cp "$SNAPSHOT_DIR/config-xpui.ini" "$tmp_config"
+
+    # Keep the machine-specific live Spicetify vanilla backup metadata.
+    if grep -q '^\[Backup\][[:space:]]*$' "$SPICETIFY_CONFIG_FILE" 2>/dev/null; then
+        awk '
+            /^\[Backup\][[:space:]]*$/ { copying = 1 }
+            copying { print }
+        ' "$SPICETIFY_CONFIG_FILE" >> "$tmp_config"
+    fi
+    mv -f -- "$tmp_config" "$SPICETIFY_CONFIG_FILE"
 fi
 
 SPOTIFY_PATH="$(spotify_install_path)" || die "Could not determine the current user-installed Spotify path."
 [[ -s "$PREFS_PATH" ]] || die "Spotify prefs are missing. Launch Spotify, log in, then run ./restore.sh again."
 
 spicetify config spotify_path "$SPOTIFY_PATH" prefs_path "$PREFS_PATH"
-info "Close Spotify completely before applying the restored customization."
-read -r -p "Press Enter after Spotify is closed... "
+if [[ "${1:-}" != "--yes" ]]; then
+    info "Close Spotify completely before applying the restored customization."
+    read -r -p "Press Enter after Spotify is closed... "
+fi
 spicetify apply
 ok "Customization restored and applied."
