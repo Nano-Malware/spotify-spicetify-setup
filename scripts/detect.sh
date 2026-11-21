@@ -70,5 +70,5 @@ if [[ "$HOME_AVAILABLE_KB" =~ ^[0-9]+$ ]] && (( HOME_AVAILABLE_KB < 1024 * 1024 
     warn "Your home filesystem has only about ${HOME_AVAILABLE_MB} MiB free. Spotify's sandbox profile/cache stays under ~/.var/app/$APP_ID by default and may consume home space. The installer will not move or symlink your login data."
 fi
 if [[ "$CANDIDATE" == /goinfre/* ]]; then
-    warn "/goinfre may be temporary or cleaned by the campus. Keep this Git repository and your customization backup outside Goinfre."
+    warn "/goinfre may be temporary or cleaned by the campus. Keep this Git repository outside Goinfre."
 fi
