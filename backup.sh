@@ -99,6 +99,7 @@ prefs
 
 # Generated state and local caches
 Backup/
+.backup-tmp.*/
 Cache/
 cache/
 *.db
