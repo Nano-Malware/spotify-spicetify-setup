@@ -6,12 +6,12 @@ Install and launch the compatible Spotify build with one command:
 ./launch.sh
 ```
 
-No sudo or administrator access is needed on the user's machine. The separate GitHub Actions build uses a hosted runner to prepare the bundle.
+No sudo or administrator access is needed on the user's machine. The separate GitHub Actions build uses a hosted runner to prepare the repository archive.
 
 ## What launch.sh does
 
 1. Selects a writable storage location and initializes the project-owned Flatpak user installation.
-2. Downloads and installs Spotify **1.2.52.442** from a verified Flatpak bundle built from the historical official Flathub packaging recipe.
+2. Downloads and installs Spotify **1.2.52.442** from a checksum-verified Flatpak repository archive built from the historical official Flathub packaging recipe.
 3. Installs the Freedesktop **24.08** runtime and its Mesa **24.08** GL extension into the project-owned Goinfre installation.
 4. Verifies the Spotify version, runtime, and Mesa version, then masks the Spotify app and Mesa extension to avoid incompatible automatic updates.
 5. Installs the official Spicetify CLI if it is missing.
@@ -19,7 +19,7 @@ No sudo or administrator access is needed on the user's machine. The separate Gi
 
 The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. Spicetify is installed as a CLI only. The launcher does not install Marketplace or apply themes/extensions.
 
-The Flatpak wrapper is rebuilt by GitHub Actions from the historical Flathub packaging source. The proprietary Spotify payload is fetched directly from its original Snapcraft source during installation and verified using the SHA-256 recorded in the historical Flathub manifest. The Flathub packaging is community-maintained and is not verified by, affiliated with, or supported by Spotify.
+The Flatpak repository is rebuilt by GitHub Actions from the historical Flathub packaging source. This app uses Flatpak extra-data, so the project distributes the OSTree repository archive rather than a single-file `.flatpak` bundle; the repository retains the metadata required for the extra-data download. The proprietary Spotify payload is fetched directly from its original Snapcraft source during installation and verified using the SHA-256 recorded in the historical Flathub manifest. The Flathub packaging is community-maintained and is not verified by, affiliated with, or supported by Spotify.
 
 ## Compatibility and security warning
 
@@ -39,9 +39,9 @@ cd spotify-spicetify-setup
 
 The first installation downloads the old Spotify build and its 24.08 runtime/graphics extension. It may take several minutes and uses several gigabytes of Goinfre storage.
 
-The historical bundle is built and published by this repository's GitHub Actions workflow. Normal users do **not** need GitHub CLI or a GitHub account. The installer downloads the published bundle automatically. You can check its publication status on the [Spotify 1.2.52.442 release page](https://github.com/Nano-Malware/spotify-spicetify-setup/releases/tag/spotify-1.2.52.442). If the release is not published yet, the installer stops safely instead of falling back to the current Spotify build.
+The historical Flatpak repository archive is built and published by this repository's GitHub Actions workflow. Normal users do **not** need GitHub CLI or a GitHub account. The installer downloads the published archive automatically. You can check its publication status on the [Spotify 1.2.52.442 release page](https://github.com/Nano-Malware/spotify-spicetify-setup/releases/tag/spotify-1.2.52.442). If the release is not published yet, the installer stops safely instead of falling back to the current Spotify build.
 
-## Maintainers: build or republish the historical bundle
+## Maintainers: build or republish the historical repository
 
 The workflow normally starts when its workflow file changes. To trigger it manually or inspect its runs, maintainers can use GitHub CLI:
 
@@ -69,7 +69,7 @@ The historical Spotify app and Mesa extension are masked in the project-owned us
 
 ## Requirements
 
-Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, awk, grep, flock, the `script` utility, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
+Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, tar, awk, grep, flock, the `script` utility, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
 
 ## Security
 
