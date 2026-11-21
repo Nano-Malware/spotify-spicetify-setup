@@ -106,7 +106,7 @@ esac
 
 DEPLOYED_COMMIT="$(flatpak info --user --show-commit "$APP_ID" 2>/dev/null || true)"
 DEPLOYED_RUNTIME="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null || true)"
-DEPLOYED_VERSION="$(flatpak info --user --show-version "$APP_ID" 2>/dev/null || true)"
+DEPLOYED_VERSION="$(spotify_installed_version || true)"
 printf '\nInstalled Spotify version: %s\n' "${DEPLOYED_VERSION:-unknown}"
 printf 'Installed app commit: %s\n' "${DEPLOYED_COMMIT:-unknown}"
 printf 'Installed runtime: %s\n' "${DEPLOYED_RUNTIME:-unknown}"
