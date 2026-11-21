@@ -35,6 +35,20 @@ cd spotify-spicetify-setup
 
 The first installation downloads the old Spotify build and its 24.08 runtime/graphics extension. It may take several minutes and uses several gigabytes of Goinfre storage.
 
+The historical bundle is produced by the repository's GitHub Actions workflow. Check that it has completed and published the release before the first install:
+
+```bash
+gh release view spotify-1.2.52.442
+```
+
+If no run has started automatically, trigger it once:
+
+```bash
+gh workflow run build-spotify-1.2.52.yml --ref main
+gh run list --workflow build-spotify-1.2.52.yml
+```
+
+
 ## Storage and account data
 
 - Spotify app, runtime, Mesa extension, and Spicetify CLI: `/goinfre/$USER/spotify-spicetify` when writable and with at least 5 GiB free; otherwise `$HOME/.local/share/spotify-spicetify`.
