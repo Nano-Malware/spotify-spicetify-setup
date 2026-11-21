@@ -11,7 +11,7 @@ A no-`sudo` Ubuntu/Linux setup that installs Spotify as a **per-user Flatpak** i
 - Otherwise uses `$HOME/.local/share/spotify-spicetify` only when that filesystem has at least 5 GiB free; otherwise it stops without installing.
 - Sets `FLATPAK_USER_DIR` so the large per-user Flatpak install is stored under the selected setup directory.
 - Installs Spotify from Flathub as a user application; it does not remove or modify the existing system-wide Spotify installation.
-- Downloads the latest official Spicetify Linux release for the current CPU architecture.
+- Downloads the latest official Spicetify Linux release for the current CPU architecture, including its required `jsHelper` files.
 - Installs Marketplace using the official Spicetify Marketplace installer.
 - Uses a project-specific XDG config/cache/data directory for Spicetify.
 - Backs up themes, extensions, custom apps and a sanitized Spicetify config to `backup/profile/`.
@@ -35,10 +35,11 @@ Clone this repository somewhere persistent (not in Goinfre):
 git clone https://github.com/Nano-Malware/spotify-spicetify-setup.git
 cd spotify-spicetify-setup
 chmod +x install.sh launch.sh backup.sh restore.sh scripts/*.sh
+./scripts/diagnose.sh
 ./install.sh
 ```
 
-The installer records the selected local storage path in `.setup-dir`, It will ask you to log in to Spotify and close Spotify before applying Spicetify when needed.
+The installer records the selected local storage path in `.setup-dir`. It will ask you to log in to Spotify and close Spotify before applying Spicetify when needed.
 
 Launch the customized per-user Spotify installation with:
 
@@ -47,6 +48,18 @@ Launch the customized per-user Spotify installation with:
 ```
 
 Do not use the old system-wide Spotify desktop launcher if you want the Spicetify-patched user installation.
+
+## Diagnostics and troubleshooting
+
+Before reporting a problem, run:
+
+```bash
+./scripts/diagnose.sh
+```
+
+It collects the Linux/kernel/glibc versions, Flatpak scope, Spotify versions and commits, Freedesktop runtimes, Mesa extension versions, selected Flatpak GL drivers, Goinfre/home storage usage, and Spicetify installation state. It does not print Spotify prefs contents, credentials, cookies, or session tokens.
+
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for the 42 Ubuntu/AMD compatibility investigation, known-good system Spotify baseline, command mistakes to avoid, and the recovery plan. The compatibility recovery is deliberately not automatic yet: the exact user-scope rollback source must be verified before replacing the currently installed Goinfre app.
 
 ## Backup and restore
 
@@ -62,7 +75,7 @@ Restore the snapshot on a machine where this project and its user-level Spotify 
 ./restore.sh
 ```
 
-Review `backup/profile/` before committing it. A **private GitHub repository** is recommended if you store Marketplace downloads or third-party themes/extensions there. Respect the licenses of third-party customization files.
+Review `backup/profile/` before committing it. A **public repository makes every committed theme, extension, and customization file visible to everyone**. Respect third-party licenses and never commit Spotify prefs, account credentials, browser cookies, access tokens, or session data.
 
 On another computer:
 
@@ -87,21 +100,17 @@ The selected path is local machine state and is not committed to Git.
 
 This project leaves the current system-wide Spotify installation untouched. Both Flatpak installations use the same application ID, so Spotify's per-app profile directory (`~/.var/app/com.spotify.Client`) may be shared by the system and user installations. Do not run both installations simultaneously while patching.
 
-The Spicetify patch target is the **user-level** Flatpak deployment. If that deployment is not writable by your account, the script stops; it will not attempt a privileged permission change.
+The Spicetify patch target is the **user-level** Flatpak deployment. If that deployment is not writable by your account, this project stops; it will not attempt a privileged permission change.
 
-## Troubleshooting
+## Known issues
 
-- **Not enough disk space:** choose another writable mount with `SPOTIFY_SETUP_DIR`. The script requires 5 GiB free before installing.
+- **Visual glitches on older AMD/kernel combinations:** a newer Flatpak runtime/Mesa may require a newer AMD DRM interface than the host kernel provides. Do not attempt to replace system glibc or system Mesa as an unprivileged workaround. Compare the working system installation with the user installation and follow the documented compatibility investigation.
+- **`flatpak kill --user` fails:** `flatpak kill` does not accept `--user`. Inspect `flatpak ps` and kill the intended instance ID.
+- **A user app appears "not installed":** check that `FLATPAK_USER_DIR` points to the project's `flatpak/` directory before querying or launching it.
+- **Marketplace/Spicetify reports missing `jsHelper` files:** reinstall the Spicetify CLI using `scripts/install_spicetify.sh --update`; the installer must copy the accompanying `jsHelper` directory, not only the binary.
 - **Spotify prefs missing:** launch the user-level app with `./launch.sh`, log in, leave it open for at least 60 seconds, close it, then rerun `./scripts/configure.sh`.
 - **Marketplace missing:** rerun `./scripts/install_marketplace.sh` after `./install.sh` has configured Spotify and Spicetify.
-- **After Spotify updates:** try `spicetify backup apply` using this project's Spicetify binary and project XDG config. The simple equivalent is:
-
-  ```bash
-  SETUP_DIR="$(cat .setup-dir)"
-  FLATPAK_USER_DIR="$SETUP_DIR/flatpak" \
-  XDG_CONFIG_HOME="$SETUP_DIR/xdg-config" \
-  "$SETUP_DIR/bin/spicetify" backup apply
-  ```
+- **After Spotify updates:** verify that the current Spicetify backup matches the deployed Spotify version before applying. Do not blindly restore an old binary backup against a different Spotify build.
 
 ## Security notes
 
