@@ -55,7 +55,18 @@ mkdir -p "$TMP_DIR/unpacked"
 tar -xzf "$TMP_DIR/spicetify.tar.gz" -C "$TMP_DIR/unpacked"
 BINARY="$(find "$TMP_DIR/unpacked" -type f -name spicetify -print -quit)"
 [[ -n "$BINARY" && -f "$BINARY" ]] || die "The downloaded archive did not contain the Spicetify executable."
-install -m 0755 "$BINARY" "$SPICETIFY_BIN"
 
-ok "Installed Spicetify to $SPICETIFY_BIN"
+# Spicetify requires jsHelper support files beside the executable at runtime.
+# Copying only the binary causes apply errors for homeConfig.js and expFeatures.js.
+HELPER_DIR="$(find "$TMP_DIR/unpacked" -type d -name jsHelper -print -quit)"
+[[ -n "$HELPER_DIR" && -d "$HELPER_DIR" ]] || die "The official archive did not contain the required jsHelper directory."
+for helper in homeConfig.js expFeatures.js; do
+    [[ -s "$HELPER_DIR/$helper" ]] || die "The official jsHelper directory is missing $helper."
+done
+
+install -m 0755 "$BINARY" "$SPICETIFY_BIN"
+rm -rf -- "$BIN_DIR/jsHelper"
+cp -a "$HELPER_DIR" "$BIN_DIR/jsHelper"
+
+ok "Installed Spicetify and jsHelper support files to $BIN_DIR"
 "$SPICETIFY_BIN" --version
