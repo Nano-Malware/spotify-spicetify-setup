@@ -9,7 +9,7 @@ source "$PROJECT_DIR/scripts/common.sh"
 init_paths
 require_command flatpak
 
-KNOWN_GOOD_COMMIT="d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366"
+KNOWN_GOOD_COMMIT="$KNOWN_GOOD_SPOTIFY_COMMIT"
 REMOTE="flathub"
 SYSTEM_REPO="/var/lib/flatpak/repo"
 BUNDLE_DIR="$SETUP_DIR/recovery"
@@ -64,8 +64,10 @@ fi
 
 printf '\nRecovery source: %s\n' "$SOURCE"
 printf 'This operation may download the 24.08 runtime and Mesa extensions.\n'
-read -r -p "Proceed with recovery of the Goinfre user Spotify? [y/N] " answer
-[[ "$answer" == [yY] ]] || { info "Recovery cancelled; nothing was changed."; exit 0; }
+if [[ "${1:-}" != "--yes" ]]; then
+    read -r -p "Proceed with recovery of the Goinfre user Spotify? [y/N] " answer
+    [[ "$answer" == [yY] ]] || { info "Recovery cancelled; nothing was changed."; exit 0; }
+fi
 
 if [[ "$SOURCE" == "remote" ]]; then
     if [[ "$CURRENT_COMMIT" == "not-installed" ]]; then
@@ -84,7 +86,10 @@ DEPLOYED_RUNTIME="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null || 
 printf '\nDeployed app commit: %s\n' "${DEPLOYED_COMMIT:-unknown}"
 printf 'Deployed runtime: %s\n' "${DEPLOYED_RUNTIME:-unknown}"
 [[ "$DEPLOYED_COMMIT" == "$KNOWN_GOOD_COMMIT" ]] || die "The deployed app commit does not match the known-good baseline. Keep the old system installation; do not run Spicetify apply."
-[[ "$DEPLOYED_RUNTIME" == "org.freedesktop.Platform/x86_64/24.08" ]] || die "The app runtime is not the expected 24.08 runtime. Do not proceed to Spicetify yet."
+[[ "$DEPLOYED_RUNTIME" == "$KNOWN_GOOD_SPOTIFY_RUNTIME" ]] || die "The app runtime is not the expected 24.08 runtime. Do not proceed to Spicetify yet."
+
+# Prevent an ordinary Flatpak update from silently replacing the tested build.
+flatpak mask --user "$APP_ID"
 
 APP_LOCATION="$(flatpak info --user --show-location "$APP_ID")"
 SPOTIFY_PATH="$APP_LOCATION/files/extra/share/spotify"
