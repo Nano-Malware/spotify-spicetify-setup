@@ -45,33 +45,14 @@ if ! flatpak remotes --user --columns=name | grep -Fxq flathub; then
 fi
 
 # The Flathub 24.08 branch now points to Mesa 26.1.x, which is too new
-# for this machine's AMD DRM 3.42. Seed the exact known-good 25.2.6 refs
-# from the existing system installation, without modifying that installation.
+# for this machine's AMD DRM 3.42. Export the exact known-good 25.2.6
+# commits from the existing system installation as local Flatpak bundles.
 MESA_EXTRA_REF="org.freedesktop.Platform.GL.default//24.08extra"
 MESA_VERSION="25.2.6"
 MESA_COMMIT="e7cca7bcddd35029a6cb5720367f49255a6be3d338eaf1e7a57945cbe84e03ec"
 MESA_EXTRA_COMMIT="765326f0e2abc4b69240f4283bb2437b04d468ce2377cf716d05b3d71a8e646e"
-MESA_FULL_REF="runtime/org.freedesktop.Platform.GL.default/x86_64/24.08"
-MESA_EXTRA_FULL_REF="runtime/org.freedesktop.Platform.GL.default/x86_64/24.08extra"
-FLATHUB_REPO_URL="https://dl.flathub.org/repo/"
 TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
-FLATHUB_REDIRECTED=0
-PRESERVE_TMP_DIR=0
-
-cleanup() {
-    if [[ "$FLATHUB_REDIRECTED" == "1" ]]; then
-        if flatpak remote-modify --user --url="$FLATHUB_REPO_URL" --gpg-verify flathub; then
-            FLATHUB_REDIRECTED=0
-        else
-            warn "Could not restore the Flathub URL. Keeping the temporary Mesa source at $TMP_DIR."
-            PRESERVE_TMP_DIR=1
-        fi
-    fi
-    if [[ -n "$TMP_DIR" && -d "$TMP_DIR" && "$PRESERVE_TMP_DIR" == "0" ]]; then
-        rm -rf -- "$TMP_DIR"
-    fi
-}
-trap cleanup EXIT
+trap 'rm -rf -- "$TMP_DIR"' EXIT
 
 info "Ensuring Freedesktop 24.08 is installed in Goinfre."
 if ! flatpak info --user "$RUNTIME_REF" >/dev/null 2>&1; then
@@ -98,44 +79,42 @@ else
         die "The exact compatible Mesa $MESA_VERSION pair is not installed in the system Flatpak installation. Refusing to use Flathub's newer Mesa branch. System versions: \${system_mesa_version:-missing}/\${system_mesa_extra_version:-missing}."
     fi
 
-    MESA_SEED_MOUNT="$TMP_DIR/mesa-seed"
-    mkdir -p "$MESA_SEED_MOUNT"
-    info "Copying the already-installed system Mesa $MESA_VERSION refs into a temporary local seed repository."
-    flatpak create-usb --system "$MESA_SEED_MOUNT" "$MESA_FULL_REF" "$MESA_EXTRA_FULL_REF"
-    MESA_SEED_REPO="$MESA_SEED_MOUNT/.ostree/repo"
-    [[ -f "$MESA_SEED_REPO/config" && -s "$MESA_SEED_REPO/summary" && -d "$MESA_SEED_REPO/objects" ]] ||
-        die "Could not create a usable local seed repository from the system Mesa installation."
+    system_mesa_location="$(flatpak --system info --show-location "$MESA_REF" 2>/dev/null || true)"
+    [[ -n "$system_mesa_location" ]] ||
+        die "Could not locate the system Mesa installation to export its verified commits."
+    system_install_root="\${system_mesa_location%%/runtime/*}"
+    system_repo="$system_install_root/repo"
+    [[ -f "$system_repo/config" && -d "$system_repo/objects" ]] ||
+        die "The system Flatpak OSTree repository is not readable at $system_repo."
 
-    info "Temporarily directing the Goinfre Flathub remote to the verified local Mesa seed."
-    flatpak remote-modify --user --no-gpg-verify --url="file://$MESA_SEED_REPO" flathub
-    FLATHUB_REDIRECTED=1
+    mesa_bundle="$TMP_DIR/mesa-24.08.flatpak"
+    mesa_extra_bundle="$TMP_DIR/mesa-24.08extra.flatpak"
 
-    seeded_mesa_commit="$(flatpak remote-info --user --show-commit flathub "$MESA_REF")"
-    seeded_extra_commit="$(flatpak remote-info --user --show-commit flathub "$MESA_EXTRA_REF")"
-    [[ "$seeded_mesa_commit" == "$MESA_COMMIT" ]] ||
-        die "The local seed has an unexpected Mesa commit: $seeded_mesa_commit"
-    [[ "$seeded_extra_commit" == "$MESA_EXTRA_COMMIT" ]] ||
-        die "The local seed has an unexpected Mesa extra commit: $seeded_extra_commit"
+    info "Exporting the verified system Mesa $MESA_VERSION commits as local Flatpak bundles."
+    flatpak build-bundle --runtime --from-commit="$MESA_COMMIT" \
+        "$system_repo" "$mesa_bundle" org.freedesktop.Platform.GL.default 24.08
+    flatpak build-bundle --runtime --from-commit="$MESA_EXTRA_COMMIT" \
+        "$system_repo" "$mesa_extra_bundle" org.freedesktop.Platform.GL.default 24.08extra
+
+    [[ -s "$mesa_bundle" && -s "$mesa_extra_bundle" ]] ||
+        die "Could not create both verified Mesa runtime bundles."
 
     flatpak mask --user --remove "$MESA_REF" >/dev/null 2>&1 || true
     flatpak mask --user --remove "$MESA_EXTRA_REF" >/dev/null 2>&1 || true
 
-    if [[ -n "$project_mesa_commit" ]]; then
-        info "Pinning the installed Mesa GL extension to the verified 25.2.6 commit."
-        flatpak update --user --noninteractive --assumeyes --commit="$MESA_COMMIT" "$MESA_REF"
-    else
-        flatpak install --user --noninteractive --assumeyes flathub "$MESA_REF"
+    if flatpak info --user "$MESA_REF" >/dev/null 2>&1; then
+        info "Replacing the newer Goinfre Mesa GL extension with the verified 25.2.6 bundle."
+        flatpak uninstall --user --noninteractive --assumeyes "$MESA_REF"
+    fi
+    if flatpak info --user "$MESA_EXTRA_REF" >/dev/null 2>&1; then
+        info "Replacing the newer Goinfre Mesa GL-extra extension with the verified 25.2.6 bundle."
+        flatpak uninstall --user --noninteractive --assumeyes "$MESA_EXTRA_REF"
     fi
 
-    if [[ -n "$project_mesa_extra_commit" ]]; then
-        info "Pinning the installed Mesa extra extension to the verified 25.2.6 commit."
-        flatpak update --user --noninteractive --assumeyes --commit="$MESA_EXTRA_COMMIT" "$MESA_EXTRA_REF"
-    else
-        flatpak install --user --noninteractive --assumeyes flathub "$MESA_EXTRA_REF"
-    fi
-
-    flatpak remote-modify --user --url="$FLATHUB_REPO_URL" --gpg-verify flathub
-    FLATHUB_REDIRECTED=0
+    info "Installing the verified Mesa 25.2.6 GL bundle in Goinfre."
+    flatpak install --user --noninteractive --assumeyes --bundle "$mesa_bundle"
+    info "Installing the verified Mesa 25.2.6 GL-extra bundle in Goinfre."
+    flatpak install --user --noninteractive --assumeyes --bundle "$mesa_extra_bundle"
 fi
 
 mesa_version="$(flatpak info --user "$MESA_REF" 2>/dev/null |
