@@ -28,7 +28,7 @@ fi
 
 mkdir -p "$INSTALL_HOME"
 info "Installing Spicetify with the official installer into $INSTALL_HOME..."
-info "Marketplace is skipped here; the launcher installs it separately."
+info "Marketplace is intentionally not installed; this launcher installs the CLI only."
 
 # 'script' supplies the TTY required by the upstream installer. The single
 # 'n' answers its Marketplace prompt; it does not accept or run any other
