@@ -72,7 +72,9 @@ if [[ "${1:-}" == "--system-copy" ]]; then
     # Keep the user copy on this exact confirmed-working build until explicitly
     # unmasked by the user. This does not change the system installation.
     flatpak mask --user "$APP_ID"
+    rm -f -- "$BUNDLE"
     ok "Copied the confirmed-working system Spotify build into Goinfre."
+    info "Removed the temporary export bundle; only the installed app remains."
     exit 0
 fi
 
