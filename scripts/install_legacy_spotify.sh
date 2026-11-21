@@ -38,10 +38,24 @@ if ! flatpak remotes --user | awk 'NR > 1 {print $1}' | grep -Fxq flathub; then
     flatpak remote-add --user --if-not-exists flathub "$FLATHUB_URL"
 fi
 
-# Install the older runtime and its matching Mesa branch into Goinfre rather
+# Install the older runtime and matching Mesa extensions into Goinfre rather
 # than relying on whatever graphics extension happens to be installed system-wide.
-info "Ensuring Freedesktop 24.08 and its Mesa GL extension are installed in Goinfre."
-flatpak install --user --noninteractive --assumeyes flathub "$RUNTIME_REF" "$MESA_REF"
+MESA_EXTRA_REF="org.freedesktop.Platform.GL.default//24.08extra"
+info "Ensuring Freedesktop 24.08 is installed in Goinfre."
+if ! flatpak info --user "$RUNTIME_REF" >/dev/null 2>&1; then
+    flatpak install --user --noninteractive --assumeyes flathub "$RUNTIME_REF"
+fi
+
+info "Ensuring the Mesa 24.08 GL extension is installed in Goinfre."
+if ! flatpak info --user "$MESA_REF" >/dev/null 2>&1; then
+    flatpak mask --user --remove "$MESA_REF" >/dev/null 2>&1 || true
+    flatpak install --user --noninteractive --assumeyes flathub "$MESA_REF"
+fi
+if flatpak remote-info --user flathub "$MESA_EXTRA_REF" >/dev/null 2>&1 &&
+   ! flatpak info --user "$MESA_EXTRA_REF" >/dev/null 2>&1; then
+    flatpak mask --user --remove "$MESA_EXTRA_REF" >/dev/null 2>&1 || true
+    flatpak install --user --noninteractive --assumeyes flathub "$MESA_EXTRA_REF"
+fi
 
 mesa_version="$(flatpak info --user "$MESA_REF" 2>/dev/null |
     awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}')"
@@ -94,4 +108,8 @@ printf 'Goinfre Mesa: %s\n' "$mesa_version"
 
 # Keep this historical version pinned in the project-owned user installation.
 flatpak mask --user "$APP_ID"
-ok "Spotify $TARGET_VERSION and its 24.08 Mesa stack are ready in Goinfre."
+flatpak mask --user "$MESA_REF"
+if flatpak info --user "$MESA_EXTRA_REF" >/dev/null 2>&1; then
+    flatpak mask --user "$MESA_EXTRA_REF"
+fi
+ok "Spotify $TARGET_VERSION and its compatible 24.08 Mesa stack are installed and pinned in Goinfre."
