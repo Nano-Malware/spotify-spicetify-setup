@@ -7,7 +7,7 @@ APP_ID="com.spotify.Client"
 KNOWN_GOOD_SPOTIFY_COMMIT="d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366"
 KNOWN_GOOD_SPOTIFY_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
 FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
-SPICETIFY_RELEASE_API="https://api.github.com/repos/spicetify/cli/releases/latest"
+SPICETIFY_RELEASES_URL="https://github.com/spicetify/cli/releases"
 MARKETPLACE_INSTALLER_URL="https://raw.githubusercontent.com/spicetify/marketplace/main/resources/install.sh"
 
 info() { printf '\033[1;34m[INFO]\033[0m %s\n' "$*"; }
@@ -46,6 +46,15 @@ ini_value() {
 spotify_is_installed() {
     command -v flatpak >/dev/null 2>&1 || return 1
     flatpak info --user "$APP_ID" >/dev/null 2>&1
+}
+
+spotify_installed_version() {
+    flatpak info --user "$APP_ID" 2>/dev/null |
+        awk '/^[[:space:]]*Version:/ {
+            sub(/^[[:space:]]*Version:[[:space:]]*/, "")
+            print
+            exit
+        }'
 }
 
 spotify_is_known_good() {
