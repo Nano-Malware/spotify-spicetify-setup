@@ -22,6 +22,10 @@ require_command awk
 exec 9>"$SETUP_DIR/.launch.lock"
 flock -n 9 || die "Another Spotify setup/launch process is already running."
 
+# Preserve the user's current themes/extensions/apps before setup can change
+# their Spicetify config. The snapshot is ignored by this public repository.
+"$PROJECT_DIR/backup.sh"
+
 if ! spotify_is_known_good; then
     info "The Goinfre Spotify is missing or not the tested build; recovering the pinned build."
     "$PROJECT_DIR/scripts/recover_known_good.sh" --yes
