@@ -25,7 +25,7 @@ bash ./scripts/install_legacy_spotify.sh
 The script:
 
 1. Uses the `FLATPAK_USER_DIR` selected by `.setup-dir` (Goinfre by default).
-2. Installs Freedesktop 24.08 into that user installation. It checks the system Flatpak installation for the exact Mesa 25.2.6 GL and GL-extra commits, copies those refs into a temporary local seed repository, and installs the matching commits into the project-owned user installation. It restores the Flathub remote URL after seeding and refuses to use a newer Mesa build.
+2. Installs Freedesktop 24.08 into that user installation. It checks the system Flatpak installation for the exact Mesa 25.2.6 GL and GL-extra commits, exports those refs as temporary local Flatpak runtime bundles, and installs the matching commits into the project-owned user installation. It does not modify the system Flathub remote and refuses to use a newer Mesa build.
 3. Downloads the release repository archive and its checksum over HTTPS.
 4. Verifies the archive checksum and extracts the repository into the project-owned setup directory.
 5. Registers a project-specific per-user Flatpak remote and verifies that the app's extra-data metadata is present.
