@@ -11,7 +11,13 @@ if [[ -z "$SETUP_DIR" && -f "$PROJECT_DIR/.setup-dir" ]]; then
     IFS= read -r SETUP_DIR < "$PROJECT_DIR/.setup-dir" || true
 fi
 if [[ -z "$SETUP_DIR" ]]; then
-    SETUP_DIR="/goinfre/${USER:-$(id -un)}/spotify-spicetify"
+    GOINFRE_USER_DIR="/goinfre/${USER:-$(id -un)}"
+    if [[ -d "$GOINFRE_USER_DIR" && -w "$GOINFRE_USER_DIR" ]] ||
+       [[ -d /goinfre && -w /goinfre ]]; then
+        SETUP_DIR="$GOINFRE_USER_DIR/spotify-spicetify"
+    else
+        SETUP_DIR="$HOME/.local/share/spotify-spicetify"
+    fi
 fi
 export FLATPAK_USER_DIR="$SETUP_DIR/flatpak"
 
