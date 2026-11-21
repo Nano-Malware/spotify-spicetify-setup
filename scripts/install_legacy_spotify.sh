@@ -18,8 +18,10 @@ TARGET_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
 RUNTIME_REF="org.freedesktop.Platform//24.08"
 MESA_REF="org.freedesktop.Platform.GL.default//24.08"
 RELEASE_TAG="spotify-1.2.52.442"
-BUNDLE_NAME="spotify-1.2.52.442.flatpak"
-CHECKSUM_NAME="$BUNDLE_NAME.sha256"
+REPO_ARCHIVE_NAME="spotify-1.2.52.442-repo.tar.gz"
+CHECKSUM_NAME="$REPO_ARCHIVE_NAME.sha256"
+REMOTE_NAME="spotify-legacy"
+LOCAL_REPO_DIR="$SETUP_DIR/spotify-flatpak-repo"
 RELEASE_URL="https://github.com/Nano-Malware/spotify-spicetify-setup/releases/download/$RELEASE_TAG"
 
 current_version="$(spotify_installed_version || true)"
@@ -80,12 +82,12 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
     TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
     trap 'rm -rf -- "$TMP_DIR"' EXIT
 
-    info "Downloading the verified Spotify $TARGET_VERSION Flatpak bundle..."
-    if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$BUNDLE_NAME" -o "$TMP_DIR/$BUNDLE_NAME"; then
-        die "The Spotify $TARGET_VERSION bundle is not available yet. Check that the GitHub Actions build workflow completed successfully: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
+    info "Downloading the verified Spotify $TARGET_VERSION repository archive..."
+    if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
+        die "The Spotify $TARGET_VERSION repository archive is not available yet. Check the GitHub Actions build workflow: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
     fi
     if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$CHECKSUM_NAME" -o "$TMP_DIR/$CHECKSUM_NAME"; then
-        die "The Spotify bundle checksum is not available. Check the GitHub Actions build workflow."
+        die "The Spotify repository archive checksum is not available. Check the GitHub Actions build workflow."
     fi
 
     (
@@ -93,11 +95,53 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
         sha256sum --check "$CHECKSUM_NAME"
     )
 
-    # Remove the existing user mask only for the duration of the replacement.
-    flatpak mask --user --remove "$APP_ID" >/dev/null 2>&1 || true
+    if ! tar -tzf "$TMP_DIR/$REPO_ARCHIVE_NAME" | awk '
+        $0 !~ /^spotify-flatpak-repo(\/|$)/ || $0 ~ /^\// || $0 ~ /(^|\/)\.\.(\/|$)/ { bad = 1 }
+        END { exit bad }
+    '; then
+        die "The repository archive contains an unexpected or unsafe path."
+    fi
 
-    info "Installing Spotify $TARGET_VERSION into the Goinfre user installation."
-    flatpak install --user --noninteractive --assumeyes --reinstall --bundle "$TMP_DIR/$BUNDLE_NAME"
+    mkdir -p "$TMP_DIR/extracted"
+    tar --no-same-owner --no-same-permissions -xzf "$TMP_DIR/$REPO_ARCHIVE_NAME" -C "$TMP_DIR/extracted"
+    STAGED_REPO="$TMP_DIR/extracted/spotify-flatpak-repo"
+    [[ -f "$STAGED_REPO/config" && -s "$STAGED_REPO/summary" && -d "$STAGED_REPO/objects" ]] ||
+        die "The downloaded archive does not contain a complete Flatpak repository."
+
+    rm -rf -- "$LOCAL_REPO_DIR"
+    mv -- "$STAGED_REPO" "$LOCAL_REPO_DIR"
+    REPO_URL="file://$LOCAL_REPO_DIR"
+
+    if flatpak remotes --user | awk 'NR > 1 {print $1}' | grep -Fxq "$REMOTE_NAME"; then
+        flatpak remote-modify --user --no-gpg-verify --url="$REPO_URL" "$REMOTE_NAME"
+    else
+        flatpak remote-add --user --no-gpg-verify "$REMOTE_NAME" "$REPO_URL"
+    fi
+
+    if ! REMOTE_REF="$(flatpak remote-info --user --show-ref "$REMOTE_NAME" "$APP_ID//stable")"; then
+        die "The local Spotify repository does not expose the expected stable application ref."
+    fi
+    [[ "$REMOTE_REF" == "app/com.spotify.Client/x86_64/stable" ]] ||
+        die "Unexpected application ref in the local Spotify repository: $REMOTE_REF"
+
+    if ! REMOTE_METADATA="$(flatpak remote-info --user --show-metadata "$REMOTE_NAME" "$APP_ID//stable")"; then
+        die "Could not read Spotify's Flatpak metadata from the local repository."
+    fi
+    printf '%s\n' "$REMOTE_METADATA" | grep -Fq '[Extra Data]' ||
+        die "Spotify's extra-data metadata is missing from the local Flatpak repository."
+
+    flatpak mask --user --remove "$APP_ID" >/dev/null 2>&1 || true
+    if flatpak info --user "$APP_ID" >/dev/null 2>&1; then
+        info "Replacing the existing project-owned Spotify app. Your profile and login data are kept."
+        flatpak uninstall --user --noninteractive --assumeyes "$APP_ID"
+    fi
+
+    info "Installing Spotify $TARGET_VERSION from the verified local Flatpak repository..."
+    flatpak install --user --noninteractive --assumeyes "$REMOTE_NAME" "$APP_ID//stable"
+
+    installed_origin="$(flatpak info --user --show-origin "$APP_ID")"
+    [[ "$installed_origin" == "$REMOTE_NAME" ]] ||
+        die "Spotify was installed from unexpected origin '$installed_origin', not '$REMOTE_NAME'."
 fi
 
 installed_version="$(spotify_installed_version || true)"
