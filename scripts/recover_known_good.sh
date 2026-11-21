@@ -67,7 +67,7 @@ if [[ "$SOURCE" == "remote" ]]; then
     flatpak update --user -y --commit="$KNOWN_GOOD_COMMIT" "$APP_ID"
 else
     info "Installing the exported known-good app bundle into the Goinfre user installation."
-    flatpak install --user -y --bundle "$BUNDLE"
+    flatpak install --user --reinstall -y --bundle "$BUNDLE"
 fi
 
 DEPLOYED_COMMIT="$(flatpak info --user --show-commit "$APP_ID" 2>/dev/null || true)"
