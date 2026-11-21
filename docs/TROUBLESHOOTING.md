@@ -12,6 +12,8 @@ This is the combination previously reported to run smoothly on the older PC with
 
 The historical application bundle is built by GitHub Actions from the original Flathub packaging source. Its proprietary Spotify payload is not hosted in this repository: Flatpak obtains it from the original Snapcraft URL and checks the SHA-256 recorded in the historical Flathub recipe.
 
+> **Security/support warning:** Freedesktop 24.08 reached end of life in September 2026. It no longer receives normal security updates. This project intentionally pins it for compatibility with older graphics hardware; use a currently supported runtime instead when security maintenance is more important than reproducing this older graphics stack.
+
 ## Install or repair the pinned build
 
 From the project directory:
