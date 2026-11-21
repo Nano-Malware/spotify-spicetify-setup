@@ -168,7 +168,7 @@ jobs:
           test "$REF" = "app/com.spotify.Client/x86_64/stable"
 
           METADATA="$(flatpak remote-info --user --show-metadata spotify-legacy com.spotify.Client//stable)"
-          printf '%s\\n' "$METADATA" | grep -q '^\\[Extra Data\\]$'
+          printf '%s\n' "$METADATA" | grep -Fq '[Extra Data]'
 
           flatpak install --user --noninteractive --assumeyes spotify-legacy com.spotify.Client//stable
 
@@ -178,9 +178,9 @@ jobs:
           test "$VERSION" = "1.2.52.442.g01893f92"
           test "$RUNTIME" = "org.freedesktop.Platform/x86_64/24.08"
           test "$INSTALLED_REF" = "app/com.spotify.Client/x86_64/stable"
-          printf 'Verified Spotify version: %s\\n' "$VERSION"
-          printf 'Verified runtime: %s\\n' "$RUNTIME"
-          printf 'Verified ref: %s\\n' "$INSTALLED_REF"
+          printf 'Verified Spotify version: %s\n' "$VERSION"
+          printf 'Verified runtime: %s\n' "$RUNTIME"
+          printf 'Verified ref: %s\n' "$INSTALLED_REF"
 
           cd "$GITHUB_WORKSPACE"
           tar -czf spotify-1.2.52.442-repo.tar.gz -C "$GITHUB_WORKSPACE" spotify-flatpak-repo
