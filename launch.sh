@@ -49,18 +49,20 @@ if [[ ! -s "$PREFS_PATH" ]]; then
     exec flatpak run --user "$APP_ID" "$@"
 fi
 
-if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
-    die "Spotify is still running. Close it completely, then run ./launch.sh again so Spicetify can safely patch it."
-fi
-
 if ! spicetify_config_matches_install; then
     info "Configuring Spicetify paths for this user installation."
     spicetify config spotify_path "$SPOTIFY_PATH" prefs_path "$PREFS_PATH"
 fi
 
+# Never attempt to create/clear a Spicetify backup automatically. If no
+# matching vanilla backup exists, leave Spotify untouched and launch it normally.
 if ! spicetify_has_backup; then
-    info "Creating the missing/version-matched vanilla backup. Existing valid backups are never reset."
-    spicetify backup
+    warn "No valid Spicetify vanilla backup was found. Skipping patching and launching Spotify normally."
+    exec flatpak run --user "$APP_ID" "$@"
+fi
+
+if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
+    die "Spotify is already running. Close it before applying Spicetify changes."
 fi
 
 if ! spicetify_has_customizations && repository_backup_exists; then
