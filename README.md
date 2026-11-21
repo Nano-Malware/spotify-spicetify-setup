@@ -6,7 +6,7 @@ Install and launch the compatible Spotify build with one command:
 ./launch.sh
 ```
 
-No sudo or administrator access is used.
+No sudo or administrator access is needed on the user's machine. The separate GitHub Actions build uses a hosted runner to prepare the bundle.
 
 ## What launch.sh does
 
