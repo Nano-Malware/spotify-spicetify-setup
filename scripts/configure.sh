@@ -29,8 +29,12 @@ read -r -p "Press Enter after Spotify is fully closed... "
 
 spicetify config spotify_path "$SPOTIFY_PATH" prefs_path "$PREFS_PATH"
 
-info "Creating Spicetify's clean Spotify backup (required before first apply)..."
-spicetify backup
+if spicetify_has_backup; then
+    ok "A matching vanilla Spotify backup already exists; preserving it."
+else
+    info "No matching vanilla backup exists. Creating it once before patching..."
+    spicetify backup
+fi
 
 ok "Spicetify paths configured."
 info "Spotify path: $SPOTIFY_PATH"
