@@ -12,7 +12,7 @@ No sudo or administrator access is needed on the user's machine. The separate Gi
 
 1. Selects a writable storage location and initializes the project-owned Flatpak user installation.
 2. Downloads and installs Spotify **1.2.52.442** from a checksum-verified Flatpak repository archive built from the historical official Flathub packaging recipe.
-3. Installs the Freedesktop **24.08** runtime into the project-owned Goinfre installation. For graphics, it seeds the exact Mesa **25.2.6** `24.08` and `24.08extra` commits from the existing system Flatpak installation, rather than downloading the newer incompatible Flathub branch.
+3. Installs the Freedesktop **24.08** runtime into the project-owned Goinfre installation. For graphics, it exports the exact Mesa **25.2.6** `24.08` and `24.08extra` commits from the existing system Flatpak installation into temporary local bundles, rather than downloading the newer incompatible Flathub branch.
 4. Verifies the Spotify version, runtime, and Mesa version, then masks the Spotify app and Mesa extension to avoid incompatible automatic updates.
 5. Installs the official Spicetify CLI if it is missing.
 6. Launches Spotify without modifying Spotify's application files.
@@ -37,7 +37,7 @@ cd spotify-spicetify-setup
 
 `install.sh` remains a backwards-compatible alias for `launch.sh`.
 
-The first installation downloads the old Spotify build and 24.08 runtime. The Mesa 25.2.6 extensions are copied from the matching system Flatpak installation when those exact commits are present. It may take several minutes and uses several gigabytes of Goinfre storage.
+The first installation downloads the old Spotify build and 24.08 runtime. The Mesa 25.2.6 extensions are exported from the matching system Flatpak installation when those exact commits are present. It may take several minutes and uses several gigabytes of Goinfre storage.
 
 The historical Flatpak repository archive is built and published by this repository's GitHub Actions workflow. Normal users do **not** need GitHub CLI or a GitHub account. The installer downloads the published archive automatically. You can check its publication status on the [Spotify 1.2.52.442 release page](https://github.com/Nano-Malware/spotify-spicetify-setup/releases/tag/spotify-1.2.52.442). If the release is not published yet, the installer stops safely instead of falling back to the current Spotify build.
 
