@@ -28,7 +28,9 @@ if ! spotify_is_known_good; then
 fi
 
 ensure_user_spotify_installed
-require_spicetify || "$PROJECT_DIR/scripts/install_spicetify.sh"
+if [[ ! -x "$SPICETIFY_BIN" ]]; then
+    "$PROJECT_DIR/scripts/install_spicetify.sh"
+fi
 
 SPOTIFY_PATH="$(spotify_install_path)" || die "Could not locate the user Spotify deployment."
 [[ -d "$SPOTIFY_PATH" && -w "$SPOTIFY_PATH" ]] || die "Spotify's user deployment is missing or not writable: $SPOTIFY_PATH"
