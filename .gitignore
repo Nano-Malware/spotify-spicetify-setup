@@ -11,10 +11,6 @@ logs/
 *.swp
 *.swo
 
-# Keep any old local customization snapshot out of the public repository.
-# The current launcher no longer creates or updates this folder.
-backup/profile/
-
 # Never commit Spotify account/session data
 prefs
 *.prefs
