@@ -5,8 +5,8 @@ set -Eeuo pipefail
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$PROJECT_DIR/scripts/common.sh"
 
-if [[ ! -f "$PROJECT_DIR/.setup-dir" && -z "${SPOTIFY_SETUP_DIR:-}" ]]; then
-    "$PROJECT_DIR/scripts/detect.sh"
+if [[ ! -f "$PROJECT_DIR/.setup-dir" ]]; then
+    bash "$PROJECT_DIR/scripts/detect.sh"
 fi
 init_paths
 
