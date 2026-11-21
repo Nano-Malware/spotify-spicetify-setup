@@ -62,8 +62,28 @@ Use `flatpak ps` to identify the running instance, then pass its instance ID to 
 - `flatpak-builder` is a separate build tool used to build an application from a manifest.
 - `flatpak build-bundle` is included in the Flatpak command-line tool and exports an already-existing ref from a local OSTree repository.
 - A bundle does not include its runtime dependencies. The runtime must be available separately.
+- Do not install `flatpak-builder` just to export an already-installed system Spotify package.
 
-Do not install `flatpak-builder` just to export an already-installed system Spotify package.
+### Flatpak recovery bundles must be complete when crossing installations
+
+The first recovery attempt failed with:
+
+```text
+Commit d5724652..., which is the delta source, is not in repository
+```
+
+Cause: `flatpak build-bundle --from-commit=...` creates a **delta bundle**. It assumes the destination OSTree repository already has the specified base commit. The Goinfre user repository is separate from `/var/lib/flatpak`, so it does not contain that base commit.
+
+Fix: export a complete bundle by omitting `--from-commit`:
+
+```bash
+flatpak build-bundle --arch=x86_64 --runtime-repo="$FLATHUB_URL" \
+  /var/lib/flatpak/repo "$BUNDLE" com.spotify.Client stable
+```
+
+The recovery script now writes to a temporary bundle path, checks that the export succeeded and produced a non-empty file, and only then atomically moves it into place. This prevents a stale or partial bundle from being mistaken for a successful export.
+
+The complete bundle contains the app commit itself, but **does not include the Freedesktop runtime or Mesa extensions**. Those dependencies must be installed in the Goinfre user installation through the configured Flathub remote. The system installation remains untouched.
 
 ### The Spotify profile still uses home storage
 
@@ -84,14 +104,15 @@ The system and user Flatpak copies share this per-app profile directory. Do not 
 
 The `--disable-gpu` launch-flag test did not resolve the user's visual problem, so it should not be treated as the final fix.
 
-## Recovery strategy under investigation
+## Recovery strategy
 
 1. Preserve the working system Spotify installation.
 2. Check whether the exact known-good app commit is still available from the user's Flathub remote using `flatpak remote-info --user --commit=COMMIT flathub com.spotify.Client`.
-3. If the remote no longer serves the commit, test whether the user can export the already-installed system app from `/var/lib/flatpak/repo` with `flatpak build-bundle`. Read access to the repository config alone does not prove all OSTree objects are readable.
-4. Install the app into the Goinfre-backed user installation only after the selected recovery source is verified. The app's manifest must continue to declare runtime 24.08.
-5. Verify the deployed runtime and graphics extension from inside the user app sandbox, then confirm the app directory is writable and run Spicetify backup/apply.
-6. Do not remove the existing user app, system app, profile, or Mesa runtimes until the recovered copy has been tested successfully.
+3. If the remote no longer serves the commit, verify that the system app is exactly the known-good commit and export it from `/var/lib/flatpak/repo` as a complete bundle (never use `--from-commit` for this cross-installation transfer).
+4. Install the app bundle into the Goinfre-backed user installation. Its runtime must be installed there as a separate dependency. The app manifest must continue to declare runtime 24.08.
+5. Verify the deployed app commit and runtime, inspect the graphics extension from inside the sandbox, then confirm the app directory is writable.
+6. Only after the app launches and renders correctly should Spicetify backup/apply be run.
+7. Do not remove the existing user app, system app, profile, or Mesa runtimes until the recovered copy has been tested successfully.
 
 ## Safe diagnostic command
 
