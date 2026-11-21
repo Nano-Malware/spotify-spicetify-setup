@@ -17,7 +17,7 @@ The historical application bundle is built by GitHub Actions from the original F
 From the project directory:
 
 ```bash
-./scripts/install_legacy_spotify.sh
+bash ./scripts/install_legacy_spotify.sh
 ```
 
 The script:
