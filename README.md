@@ -32,7 +32,7 @@ This project does not install system packages. If a required tool is missing and
 Clone this repository somewhere persistent (not in Goinfre):
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/spotify-spicetify-setup.git
+git clone https://github.com/Nano-Malware/spotify-spicetify-setup.git
 cd spotify-spicetify-setup
 chmod +x install.sh launch.sh backup.sh restore.sh scripts/*.sh
 ./install.sh
