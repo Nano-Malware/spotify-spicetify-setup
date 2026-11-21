@@ -16,6 +16,7 @@ require_command tar
 
 TARGET_VERSION="1.2.52.442.g01893f92"
 TARGET_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
+TARGET_REF="app/com.spotify.Client/x86_64/stable"
 RUNTIME_REF="org.freedesktop.Platform//24.08"
 MESA_REF="org.freedesktop.Platform.GL.default//24.08"
 RELEASE_TAG="spotify-1.2.52.442"
@@ -27,8 +28,9 @@ RELEASE_URL="https://github.com/Nano-Malware/spotify-spicetify-setup/releases/do
 
 current_version="$(spotify_installed_version || true)"
 current_runtime="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null || true)"
+current_ref="$(flatpak info --user --show-ref "$APP_ID" 2>/dev/null || true)"
 
-if [[ "$current_version" == "$TARGET_VERSION" && "$current_runtime" == "$TARGET_RUNTIME" ]]; then
+if [[ "$current_version" == "$TARGET_VERSION" && "$current_runtime" == "$TARGET_RUNTIME" && "$current_ref" == "$TARGET_REF" ]]; then
     info "The requested Spotify build is already installed: $TARGET_VERSION"
 else
     if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
@@ -80,7 +82,7 @@ if (( mesa_major > 26 || (mesa_major == 26 && mesa_minor >= 1) )); then
 fi
 info "Goinfre Mesa extension version: $mesa_version"
 
-if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_RUNTIME" ]]; then
+if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_RUNTIME" || "$current_ref" != "$TARGET_REF" ]]; then
     TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
     trap 'rm -rf -- "$TMP_DIR"' EXIT
 
@@ -148,14 +150,18 @@ fi
 
 installed_version="$(spotify_installed_version || true)"
 installed_runtime="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null || true)"
+installed_ref="$(flatpak info --user --show-ref "$APP_ID" 2>/dev/null || true)"
 printf '\nInstalled Spotify version: %s\n' "${installed_version:-unknown}"
 printf 'Installed runtime: %s\n' "${installed_runtime:-unknown}"
+printf 'Installed ref: %s\n' "${installed_ref:-unknown}"
 printf 'Goinfre Mesa: %s\n' "$mesa_version"
 
 [[ "$installed_version" == "$TARGET_VERSION" ]] ||
     die "Spotify version verification failed; expected $TARGET_VERSION."
 [[ "$installed_runtime" == "$TARGET_RUNTIME" ]] ||
     die "Spotify runtime verification failed; expected $TARGET_RUNTIME."
+[[ "$installed_ref" == "$TARGET_REF" ]] ||
+    die "Spotify ref verification failed; expected $TARGET_REF."
 
 # Keep this historical version pinned in the project-owned user installation.
 flatpak mask --user "$APP_ID"
