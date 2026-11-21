@@ -41,11 +41,14 @@ cd spotify-spicetify-setup
 
 ```bash
 ./scripts/diagnose.sh            # collect compatibility diagnostics
-./scripts/recover_known_good.sh  # interactive recovery of the tested Spotify build
+./scripts/recover_known_good.sh  # install a Spotify build from Flathub when needed
+./scripts/recover_known_good.sh --system-copy  # copy this PC's working system Spotify into Goinfre
 ./scripts/install_spicetify.sh   # install the official Spicetify CLI
 ```
 
 Spotify installation prefers the tested build when available, can export it from a matching readable system Flatpak repository, and otherwise installs the current Flathub stable release on a clean computer. It never modifies the system Spotify installation. Only the specifically tested pinned build is masked from updates; the current-stable fallback is left unmasked.
+
+When the system-installed Spotify on this same computer is the version you have confirmed works better, run `./scripts/recover_known_good.sh --system-copy` after closing Spotify. This exports the system app into a complete bundle, installs that exact app commit in the project's user Flatpak installation, verifies the commit and runtime match, and masks only the user copy from updates. The system installation is read-only and is not changed.
 
 ## Requirements
 
