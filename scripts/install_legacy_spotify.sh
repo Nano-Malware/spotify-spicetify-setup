@@ -12,6 +12,7 @@ require_command curl
 require_command sha256sum
 require_command awk
 require_command grep
+require_command tar
 
 TARGET_VERSION="1.2.52.442.g01893f92"
 TARGET_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
@@ -36,7 +37,7 @@ else
     warn "Freedesktop 24.08 reached end of life in September 2026 and no longer receives normal security updates. This is an intentional compatibility pin."
 fi
 
-if ! flatpak remotes --user | awk 'NR > 1 {print $1}' | grep -Fxq flathub; then
+if ! flatpak remotes --user --columns=name | grep -Fxq flathub; then
     info "Adding Flathub to the Goinfre user installation."
     flatpak remote-add --user --if-not-exists flathub "$FLATHUB_URL"
 fi
@@ -112,7 +113,7 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
     mv -- "$STAGED_REPO" "$LOCAL_REPO_DIR"
     REPO_URL="file://$LOCAL_REPO_DIR"
 
-    if flatpak remotes --user | awk 'NR > 1 {print $1}' | grep -Fxq "$REMOTE_NAME"; then
+    if flatpak remotes --user --columns=name | grep -Fxq "$REMOTE_NAME"; then
         flatpak remote-modify --user --no-gpg-verify --url="$REPO_URL" "$REMOTE_NAME"
     else
         flatpak remote-add --user --no-gpg-verify "$REMOTE_NAME" "$REPO_URL"
