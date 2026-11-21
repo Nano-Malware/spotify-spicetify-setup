@@ -37,6 +37,13 @@ backup_directory() {
     fi
 
     mkdir -p "$staged"
+    # Start with the previous snapshot, then overlay current files. This is
+    # backup-first behavior: a file missing from the live config is not
+    # silently deleted from the only saved copy.
+    if [[ -d "$destination" ]]; then
+        cp -a -- "$destination/." "$staged/"
+    fi
+
     if [[ "$name" == "CustomApps" ]]; then
         # Marketplace is managed by the setup script and can be reinstalled.
         while IFS= read -r -d '' entry; do
