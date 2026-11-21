@@ -103,13 +103,17 @@ jobs:
           def patch_modules(modules):
               global found
               for module in modules:
+                  if not isinstance(module, dict):
+                      continue
                   if module.get("name") == "ayatana-ido":
                       options = module.setdefault("config-opts", [])
                       flag = "-DCMAKE_INSTALL_LIBDIR=lib"
                       if flag not in options:
                           options.append(flag)
                       found = True
-                  patch_modules(module.get("modules", []))
+                  children = module.get("modules", [])
+                  if isinstance(children, list):
+                      patch_modules(children)
 
           patch_modules(manifest.get("modules", []))
           if not found:
