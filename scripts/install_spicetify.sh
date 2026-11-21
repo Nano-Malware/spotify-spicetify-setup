@@ -7,80 +7,48 @@ source "$SCRIPT_DIR/common.sh"
 init_paths
 
 require_command curl
-require_command python3
-require_command tar
-require_command find
-require_command install
-require_command cp
+require_command script
+require_command grep
 require_command chmod
 
-FORCE_UPDATE="${1:-}"
-if [[ -x "$SPICETIFY_BIN" && "$FORCE_UPDATE" != "--update" ]]; then
-    ok "Spicetify CLI already exists: $SPICETIFY_BIN"
+# The official installer always installs to "$HOME/.spicetify" and asks
+# interactive questions through /dev/tty. Give it an isolated HOME under the
+# project-owned Goinfre directory and a temporary PTY, so it cannot discover
+# or update another Spicetify installation or touch the user's shell config.
+INSTALL_HOME="$SETUP_DIR/spicetify-installer-home"
+INSTALL_BIN="$INSTALL_HOME/.spicetify/spicetify"
+INSTALL_LOG="$SETUP_DIR/spicetify-installer.log"
+CLEAN_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+if [[ -x "$SPICETIFY_BIN" ]]; then
+    ok "Spicetify CLI is already installed in the project directory."
     "$SPICETIFY_BIN" --version
     exit 0
 fi
 
-ARCH="$(uname -m)"
-case "$ARCH" in
-    x86_64|amd64) RELEASE_ARCH="amd64" ;;
-    aarch64|arm64) RELEASE_ARCH="arm64" ;;
-    *) die "Unsupported CPU architecture for the Spicetify Linux release: $ARCH" ;;
-esac
+mkdir -p "$INSTALL_HOME"
+info "Installing Spicetify with the official installer into $INSTALL_HOME..."
+info "Marketplace is skipped here; the launcher installs it separately."
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
-
-RELEASE_VERSION=""
-if curl -fsSL -H 'Accept: application/json' \
-    "$SPICETIFY_RELEASES_URL/latest" -o "$TMP_DIR/release.json"; then
-    RELEASE_VERSION="$(python3 - "$TMP_DIR/release.json" <<'PY'
-import re
-import sys
-
-try:
-    with open(sys.argv[1], "r", encoding="utf-8") as handle:
-        content = handle.read()
-    match = re.search(
-        r'"tag_name"\s*:\s*"v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)"',
-        content,
-    )
-    if match:
-        print(match.group(1))
-except OSError:
-    pass
-PY
-)" || true
+# 'script' supplies the TTY required by the upstream installer. The single
+# 'n' answers its Marketplace prompt; it does not accept or run any other
+# interactive action. HOME and PATH are isolated from existing installations.
+if ! printf 'n\n' | script -q -e -c \
+    "env HOME='$INSTALL_HOME' PATH='$CLEAN_PATH' SHELL=/bin/sh sh -c 'curl -fsSL https://raw.githubusercontent.com/spicetify/cli/main/install.sh | sh'" \
+    /dev/null 2>&1 | tee "$INSTALL_LOG"; then
+    warn "The official Spicetify installer failed. Details are saved in: $INSTALL_LOG"
+    die "Could not install Spicetify. Check your network connection and the installer log."
 fi
 
-# GitHub's API can rate-limit unauthenticated campus connections. The official
-# Spicetify project installer also resolves releases through GitHub's releases
-# page rather than requiring the REST API. Keep a verified current release as
-# a last-resort fallback so a temporary API/page failure does not brick setup.
-if [[ -z "$RELEASE_VERSION" ]]; then
-    RELEASE_VERSION="2.46.7"
-    warn "Could not resolve the latest Spicetify release; using the last verified stable release v$RELEASE_VERSION."
-fi
+[[ -x "$INSTALL_BIN" ]] || {
+    warn "The official installer completed without creating its expected executable."
+    die "Spicetify was not installed. Check $INSTALL_LOG."
+}
 
-ASSET_URL="$SPICETIFY_RELEASES_URL/download/v$RELEASE_VERSION/spicetify-$RELEASE_VERSION-linux-$RELEASE_ARCH.tar.gz"
-info "Downloading Spicetify v$RELEASE_VERSION for Linux $RELEASE_ARCH..."
-curl -fL --retry 3 "$ASSET_URL" -o "$TMP_DIR/spicetify.tar.gz"
-
-mkdir -p "$TMP_DIR/unpacked"
-tar -xzf "$TMP_DIR/spicetify.tar.gz" -C "$TMP_DIR/unpacked"
-BINARY="$(find "$TMP_DIR/unpacked" -type f -name spicetify -print -quit)"
-[[ -n "$BINARY" && -f "$BINARY" ]] || die "The official Spicetify archive did not contain the executable."
-
-# Install the entire official package, not just its executable. This preserves
-# any companion files (including jsHelper, when present) beside the CLI.
+# Move the official installation into the path shared by the rest of this
+# project. Keep the complete package, not only the executable.
 mkdir -p "$BIN_DIR"
-rm -f -- "$SPICETIFY_BIN"
-rm -rf -- "$BIN_DIR/jsHelper"
-cp -a "$TMP_DIR/unpacked/." "$BIN_DIR/"
-if [[ ! -x "$SPICETIFY_BIN" ]]; then
-    install -m 0755 "$BINARY" "$SPICETIFY_BIN"
-fi
+cp -a "$INSTALL_HOME/.spicetify/." "$BIN_DIR/"
 chmod 0755 "$SPICETIFY_BIN"
-
-ok "Installed Spicetify and its companion files to $BIN_DIR"
+ok "Official Spicetify CLI installed to $BIN_DIR"
 "$SPICETIFY_BIN" --version
