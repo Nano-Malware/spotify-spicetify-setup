@@ -153,7 +153,7 @@ jobs:
             gh release upload "$RELEASE_TAG" \
               release/spotify-1.2.52.442.flatpak \
               release/spotify-1.2.52.442.flatpak.sha256 \
-              --clobber \\
+              --clobber \
               --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$RELEASE_TAG" \
@@ -161,6 +161,6 @@ jobs:
               release/spotify-1.2.52.442.flatpak.sha256 \
               --title "Spotify 1.2.52.442 — historical Flathub build" \
               --notes "Rebuilt from flathub/com.spotify.Client at commit 0187fe4fe523d8f1a3f41104c635fffbd4e6b09a. Uses Freedesktop 24.08. The proprietary Spotify payload is fetched from the original Snapcraft URL during installation and validated against the SHA-256 published in the historical Flathub manifest." \
-              --target "$GITHUB_SHA" \\
+              --target "$GITHUB_SHA" \
               --repo "$GITHUB_REPOSITORY"
           fi
