@@ -21,6 +21,10 @@ The selected Spotify build and 24.08 graphics stack reproduce the combination th
 
 The Flatpak wrapper is rebuilt by GitHub Actions from the historical Flathub packaging source. The proprietary Spotify payload is fetched directly from its original Snapcraft source during installation and verified using the SHA-256 recorded in the historical Flathub manifest. The Flathub packaging is community-maintained and is not verified by, affiliated with, or supported by Spotify.
 
+## Compatibility and security warning
+
+This project deliberately pins Freedesktop Platform 24.08 to reproduce a graphics/runtime combination that worked on older AMD hardware. **Freedesktop 24.08 reached end of life in September 2026 and no longer receives normal security updates.** Use this compatibility build only when that trade-off is acceptable; it is not the recommended choice for users who need a currently supported runtime. The project does not silently switch to a newer runtime because doing so could reintroduce the graphics incompatibility this setup is intended to avoid.
+
 ## Install
 
 Keep this Git repository somewhere persistent (not in Goinfre):
