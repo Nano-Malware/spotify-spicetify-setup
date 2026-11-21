@@ -47,6 +47,15 @@ backup_directory() {
         cp -a -- "$source_dir/." "$staged/"
     fi
 
+    # An empty source (or a CustomApps folder containing only Marketplace)
+    # must not erase an older backup that still contains personal files.
+    entry="$(find "$staged" -mindepth 1 -print -quit 2>/dev/null)"
+    if [[ -z "$entry" ]]; then
+        info "$name has no personal files; preserving any previous snapshot."
+        rm -rf -- "$staged"
+        return 0
+    fi
+
     # Replace each snapshot directory only after its new copy is complete.
     if [[ -e "$destination" ]]; then
         mv -- "$destination" "$previous"
