@@ -39,17 +39,15 @@ cd spotify-spicetify-setup
 
 The first installation downloads the old Spotify build and its 24.08 runtime/graphics extension. It may take several minutes and uses several gigabytes of Goinfre storage.
 
-The historical bundle is produced by the repository's GitHub Actions workflow. Check that it has completed and published the release before the first install:
+The historical bundle is built and published by this repository's GitHub Actions workflow. Normal users do **not** need GitHub CLI or a GitHub account. The installer downloads the published bundle automatically. You can check its publication status on the [Spotify 1.2.52.442 release page](https://github.com/Nano-Malware/spotify-spicetify-setup/releases/tag/spotify-1.2.52.442). If the release is not published yet, the installer stops safely instead of falling back to the current Spotify build.
 
-```bash
-gh release view spotify-1.2.52.442
-```
+## Maintainers: build or republish the historical bundle
 
-If no run has started automatically, trigger it once:
+The workflow normally starts when its workflow file changes. To trigger it manually or inspect its runs, maintainers can use GitHub CLI:
 
 ```bash
 gh workflow run build-spotify-1.2.52.yml --ref main
-gh run list --workflow build-spotify-1.2.52.yml
+gh run list --workflow build-spotify-1.2.52.yml --limit 5
 ```
 
 
@@ -71,7 +69,7 @@ The historical Spotify app and Mesa extension are masked in the project-owned us
 
 ## Requirements
 
-Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, awk, grep, flock, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
+Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, awk, grep, flock, the `script` utility, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
 
 ## Security
 
