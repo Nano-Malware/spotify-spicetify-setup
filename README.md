@@ -1,127 +1,65 @@
-# Spotify + Spicetify user-space setup
+# Spotify + Spicetify user-space launcher
 
-A no-`sudo` Ubuntu/Linux setup that installs Spotify as a **per-user Flatpak** into a chosen storage directory (Goinfre by default when available), installs the official Spicetify CLI, installs Spicetify Marketplace, and provides portable customization backup/restore scripts.
-
-> **Important storage detail:** `FLATPAK_USER_DIR` controls where Flatpak stores the per-user application and runtime installation. Flatpak still puts the Spotify sandbox profile/config/cache under `~/.var/app/com.spotify.Client` by default. This project deliberately does not symlink or relocate that profile because it may contain login/session data. Keep enough free space in your home directory for Spotify's profile and cache.
-
-## What this project does
-
-- Uses no `sudo`, `su`, `pkexec`, or administrator permissions.
-- Uses `/goinfre/$USER/spotify-spicetify` when `/goinfre` is writable and has at least 5 GiB free.
-- Otherwise uses `$HOME/.local/share/spotify-spicetify` only when that filesystem has at least 5 GiB free; otherwise it stops without installing.
-- Sets `FLATPAK_USER_DIR` so the large per-user Flatpak install is stored under the selected setup directory.
-- Installs Spotify from Flathub as a user application; it does not remove or modify the existing system-wide Spotify installation.
-- Downloads the latest official Spicetify Linux release for the current CPU architecture, including its required `jsHelper` files.
-- Installs Marketplace using the official Spicetify Marketplace installer.
-- Uses a project-specific XDG config/cache/data directory for Spicetify.
-- Backs up themes, extensions, custom apps and a sanitized Spicetify config to `backup/profile/`.
-- Does **not** back up Spotify prefs, login credentials, session tokens, Spotify cache, or Spicetify's vanilla Spotify binary backup.
-
-## Requirements
-
-- Linux (first version targets Ubuntu/Debian-based distributions).
-- `flatpak`, `curl`, `python3`, `tar`, `awk`, `df`, `stat`, `chmod`, and standard shell utilities.
-- A writable storage location with at least 5 GiB free for the Flatpak install/runtime.
-- Network access to Flathub and GitHub.
-- A Spotify account. On a new machine you must log in again; account credentials are never copied by this project.
-
-This project does not install system packages. If a required tool is missing and you cannot install it without administrator rights, ask your system administrator.
-
-## Install
-
-Clone this repository somewhere persistent (not in Goinfre):
-
-```bash
-git clone https://github.com/Nano-Malware/spotify-spicetify-setup.git
-cd spotify-spicetify-setup
-chmod +x install.sh launch.sh backup.sh restore.sh scripts/*.sh
-./scripts/diagnose.sh
-./install.sh
-```
-
-The installer records the selected local storage path in `.setup-dir`. It will ask you to log in to Spotify and close Spotify before applying Spicetify when needed.
-
-Launch the customized per-user Spotify installation with:
+A minimal Ubuntu/Linux setup that runs Spotify with Spicetify from one command:
 
 ```bash
 ./launch.sh
 ```
 
-Do not use the old system-wide Spotify desktop launcher if you want the Spicetify-patched user installation.
+No sudo or administrator access is used. The project keeps its Flatpak installation, Spicetify config, cache and vanilla backup in a writable setup directory (Goinfre by default when available).
 
-## Diagnostics and troubleshooting
+## What launch.sh does
 
-Before reporting a problem, run:
+1. Selects a writable storage location and initializes the user Flatpak directory.
+2. Checks the Spotify app commit and runtime against the tested baseline:
+   - Commit: `d5724652e6dbee2d912d4da426b55d6d16364c405d4f271ca2f04855a7046366`
+   - Runtime: `org.freedesktop.Platform/x86_64/24.08`
+3. If necessary, recovers that exact build from Flathub or exports it from the matching system Flatpak repository. It never copies random system files or accepts an unverified version.
+4. Installs the official Spicetify CLI if it is missing.
+5. Keeps Spicetify config and its vanilla backup in the selected setup directory.
+6. Creates a vanilla backup only when one is missing or does not match the installed Spotify version. A valid backup is never reset automatically.
+7. Installs Marketplace and restores the repository's portable customizations when the user config is empty.
+8. Applies Spicetify only when the Spotify app is not already patched, verifies the result, and launches Spotify.
 
-```bash
-./scripts/diagnose.sh
-```
+The first run may open Spotify so you can sign in. Close it and run `./launch.sh` again to finish setup and start the customized app. If the user prefs do not exist yet, the launcher opens Spotify for profile creation and resumes setup on the next run.
 
-It collects the Linux/kernel/glibc versions, Flatpak scope, Spotify versions and commits, Freedesktop runtimes, Mesa extension versions, selected Flatpak GL drivers, Goinfre/home storage usage, and Spicetify installation state. It does not print Spotify prefs contents, credentials, cookies, or session tokens.
+## Install
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for the 42 Ubuntu/AMD compatibility investigation, known-good system Spotify baseline, and recovery notes. To attempt the opt-in recovery of the exact known-good app build in Goinfre, run `./scripts/recover_known_good.sh`. It verifies whether Flathub still serves the pinned commit and otherwise attempts a local bundle export from the known-good system installation. It asks before changing the Goinfre app and never changes the system installation.
-
-## Compatibility recovery
-
-After running diagnostics and confirming that the system Spotify still works, you can attempt the pinned 24.08 recovery:
-
-```bash
-./scripts/recover_known_good.sh
-```
-
-The script checks the pinned app commit, prompts before changing the Goinfre installation, and verifies the deployed commit/runtime and writable app directory. It does not apply Spicetify automatically: first launch the user app and test login, playback, and rendering. Only then configure/apply Spicetify. The system installation is left untouched.
-
-## Backup and restore
-
-Update the portable customization snapshot:
+Keep this Git repository somewhere persistent (not in Goinfre):
 
 ```bash
-./backup.sh
+git clone https://github.com/Nano-Malware/spotify-spicetify-setup.git
+cd spotify-spicetify-setup
+./launch.sh
 ```
 
-Restore the snapshot on a machine where this project and its user-level Spotify installation are already set up:
+`install.sh` remains as a backwards-compatible alias for `launch.sh`.
+
+## Storage and account data
+
+- Flatpak app/runtime and Spicetify state: `/goinfre/$USER/spotify-spicetify` when writable and with at least 5 GiB free; otherwise `$HOME/.local/share/spotify-spicetify`.
+- Spotify's own profile and prefs remain under `~/.var/app/com.spotify.Client`. They may contain login/session data and are deliberately not copied or moved.
+- Existing `~/.config/spicetify` customizations and `~/.local/state/spicetify/Backup` are copied into the project storage when the corresponding destination is absent. Original files are left untouched.
+- Goinfre may be cleaned by campus policy. Keep the Git repository and portable customization snapshot in persistent storage.
+
+## Manual maintenance
 
 ```bash
-./restore.sh
+./scripts/diagnose.sh       # collect compatibility diagnostics
+./scripts/recover_known_good.sh  # interactive pinned-version recovery
+./backup.sh                 # update portable themes/extensions/custom apps snapshot
+./restore.sh                # interactively restore that snapshot
+./apply.sh                  # manually apply Spicetify
 ```
 
-Review `backup/profile/` before committing it. A **public repository makes every committed theme, extension, and customization file visible to everyone**. Respect third-party licenses and never commit Spotify prefs, account credentials, browser cookies, access tokens, or session data.
+The recovery script only accepts the pinned app commit and expected runtime. It prefers the exact Flathub commit; if unavailable, it can export a complete bundle from the system Flatpak repository only when that system app is at the exact same commit and its repository objects are readable. It never modifies the system Spotify installation. After recovery it masks normal user-scope updates for Spotify so the tested build is not silently replaced.
 
-On another computer:
+## Requirements
 
-1. Clone this repository.
-2. Run `./install.sh` to install Spotify and Spicetify into that computer's chosen writable location.
-3. Log in to Spotify on that computer.
-4. Run `./restore.sh` to restore the customizations from Git.
+Linux (tested on Ubuntu), Flatpak, curl, Python 3, tar, unzip, awk, find, flock, and at least 5 GiB free in the selected storage location. Network access to Flathub and GitHub is needed for first-time setup. This project does not install system packages or update glibc.
 
-Goinfre is not portable and may be cleaned. The repository and the portable snapshot must remain in persistent storage (such as your home directory or GitHub).
+## Security
 
-## Choose another installation location
+Never commit Spotify prefs, credentials, cookies, tokens, the Flatpak app directory, or machine-specific state. Review `backup/profile/` before pushing: this repository is public, so committed customizations are publicly visible. Respect the licenses of third-party themes, extensions and custom apps.
 
-You can explicitly choose a writable mounted directory with at least 5 GiB free:
-
-```bash
-SPOTIFY_SETUP_DIR=/path/to/writable/disk/spotify-spicetify ./install.sh
-```
-
-The selected path is local machine state and is not committed to Git.
-
-## Existing system Spotify
-
-This project leaves the current system-wide Spotify installation untouched. Both Flatpak installations use the same application ID, so Spotify's per-app profile directory (`~/.var/app/com.spotify.Client`) may be shared by the system and user installations. Do not run both installations simultaneously while patching.
-
-The Spicetify patch target is the **user-level** Flatpak deployment. If that deployment is not writable by your account, this project stops; it will not attempt a privileged permission change.
-
-## Known issues
-
-- **Visual glitches on older AMD/kernel combinations:** a newer Flatpak runtime/Mesa may require a newer AMD DRM interface than the host kernel provides. Do not attempt to replace system glibc or system Mesa as an unprivileged workaround. Compare the working system installation with the user installation and follow the documented compatibility investigation.
-- **`flatpak kill --user` fails:** `flatpak kill` does not accept `--user`. Inspect `flatpak ps` and kill the intended instance ID.
-- **A user app appears "not installed":** check that `FLATPAK_USER_DIR` points to the project's `flatpak/` directory before querying or launching it.
-- **Marketplace/Spicetify reports missing `jsHelper` files:** reinstall the Spicetify CLI using `scripts/install_spicetify.sh --update`; the installer must copy the accompanying `jsHelper` directory, not only the binary.
-- **Spotify prefs missing:** launch the user-level app with `./launch.sh`, log in, leave it open for at least 60 seconds, close it, then rerun `./scripts/configure.sh`.
-- **Marketplace missing:** rerun `./scripts/install_marketplace.sh` after `./install.sh` has configured Spotify and Spicetify.
-- **After Spotify updates:** verify that the current Spicetify backup matches the deployed Spotify version before applying. Do not blindly restore an old binary backup against a different Spotify build.
-
-## Security notes
-
-Never commit `~/.var/app/com.spotify.Client`, Spotify's `prefs` file, browser cookies, access tokens, passwords, or the Flatpak installation directory. The `.gitignore` excludes common sensitive-file names, but always inspect `git status` before pushing.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for the compatibility investigation and recovery details.
