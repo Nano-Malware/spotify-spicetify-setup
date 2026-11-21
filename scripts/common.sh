@@ -43,6 +43,11 @@ ini_value() {
     ' "$file"
 }
 
+spotify_is_installed() {
+    command -v flatpak >/dev/null 2>&1 || return 1
+    flatpak info --user "$APP_ID" >/dev/null 2>&1
+}
+
 spotify_is_known_good() {
     local installed_commit
     local installed_runtime
