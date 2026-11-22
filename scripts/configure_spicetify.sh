@@ -168,16 +168,72 @@ if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
     die "Spotify is currently running. Close every Spotify window completely, then run ./launch.sh again to apply Spicetify safely."
 fi
 
+reinstall_pinned_spotify() {
+    if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
+        die "Spotify is running. Close it before repairing its project-owned app files."
+    fi
+
+    flatpak remotes --user --columns=name | grep -Fxq spotify-legacy ||
+        die "The project's verified spotify-legacy Flatpak remote is missing; cannot safely restore the pinned app."
+
+    warn "Spicetify found modified Spotify files without a usable native state. Reinstalling only the pinned Goinfre app; your Spotify profile and login data are kept."
+    flatpak mask --user --remove "$APP_ID" >/dev/null 2>&1 || true
+    run_with_progress "Removing damaged pinned Spotify app" \
+        flatpak uninstall --user --noninteractive --assumeyes "$APP_ID" ||
+        die "Could not remove the damaged project-owned Spotify app."
+    run_with_progress "Reinstalling pinned Spotify app" \
+        flatpak install --user --noninteractive --assumeyes spotify-legacy "$APP_ID//stable" ||
+        die "Could not reinstall the pinned Spotify app from the project's verified local repository."
+
+    [[ "$(spotify_installed_version)" == "$TARGET_SPOTIFY_VERSION" ]] ||
+        die "The repaired Spotify installation does not match the pinned version."
+
+    flatpak mask --user "$APP_ID"
+    SPOTIFY_PATH="$(spotify_install_path)" ||
+        die "Could not locate the reinstalled project-owned Spotify app."
+    spicetify_cmd config spotify_path "$SPOTIFY_PATH" >/dev/null
+}
+
+run_spicetify_with_repair() {
+    local action="$1"
+    local output
+    local status
+
+    if [[ "$action" == "apply" ]]; then
+        if output="$(spicetify_cmd apply --no-restart 2>&1)"; then
+            printf '%s\n' "$output"
+            return 0
+        else
+            status=$?
+        fi
+    else
+        if output="$(spicetify_cmd backup apply --no-restart 2>&1)"; then
+            printf '%s\n' "$output"
+            return 0
+        else
+            status=$?
+        fi
+    fi
+
+    printf '%s\n' "$output" >&2
+    if [[ "$output" != *"You haven't backed up and Spotify cannot be backed up at this state"* ]]; then
+        return "$status"
+    fi
+
+    reinstall_pinned_spotify
+    run_with_progress "Applying Spicetify to clean Spotify" \
+        spicetify_cmd backup apply --no-restart ||
+        die "Spicetify still could not apply after reinstalling the clean pinned Spotify app."
+}
+
 if [[ "$spotify_is_patched" == "1" ]]; then
     info "Updating the existing Spicetify patch."
-    run_with_progress "Applying Spicetify" \
-        spicetify_cmd apply --no-restart ||
-        die "Spicetify apply failed."
+    run_spicetify_with_repair apply ||
+        die "Spicetify apply failed. See the CLI output above."
 else
-    info "First Spicetify setup: using Spicetify's built-in backup/apply command."
-    run_with_progress "Applying Spicetify for the first time" \
-        spicetify_cmd backup apply --no-restart ||
-        die "Spicetify's first-time backup/apply command failed. The repository does not manage backup files; check the Spicetify error above."
+    info "First Spicetify setup: using Spicetify's native first-time command."
+    run_spicetify_with_repair backup-apply ||
+        die "Spicetify's first-time setup failed. See the CLI output above."
 fi
 
 [[ -s "$marketplace_entry" ]] ||
