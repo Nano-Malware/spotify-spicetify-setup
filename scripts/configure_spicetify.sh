@@ -14,14 +14,20 @@ require_command sha256sum
 require_command awk
 require_command grep
 
-# Force all Spicetify calls to use the project-owned config and state folders.
+# Keep Spicetify's named state folders separate. SPICETIFY_STATE overrides
+# the entire state path and makes Backup and Extracted collide in CLI v2.46.7.
+SPICETIFY_STATE_DIR="$XDG_STATE_HOME/spicetify"
+backup_dir="$SPICETIFY_STATE_DIR/Backup"
+adopt_backup_dir="$backup_dir"
+
+# Force every CLI call to use project-owned XDG/config paths and ignore any
+# SPICETIFY_STATE value inherited from the user's shell.
 spicetify_cmd() {
-    env \
+    env -u SPICETIFY_STATE \
         XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
         XDG_CACHE_HOME="$XDG_CACHE_HOME" \
         XDG_STATE_HOME="$XDG_STATE_HOME" \
         SPICETIFY_CONFIG="$SPICETIFY_CONFIG_DIR" \
-        SPICETIFY_STATE="$SPICETIFY_STATE" \
         "$SPICETIFY_BIN" "$@"
 }
 
@@ -143,6 +149,17 @@ fi
     die "Spotify preferences are not readable and writable: $PREFS_PATH"
 
 cli_version="$(spicetify_cmd --version | tail -n 1 | tr -d '\r')"
+
+# Migrate backups created by the previous project layout, which set
+# SPICETIFY_STATE directly to the shared state root.
+if [[ ! -e "$backup_dir/xpui.spa" && ! -e "$backup_dir/login.spa" &&
+      -s "$SPICETIFY_STATE_DIR/xpui.spa" &&
+      -s "$SPICETIFY_STATE_DIR/login.spa" ]]; then
+    mkdir -p "$backup_dir"
+    cp -n -- "$SPICETIFY_STATE_DIR/xpui.spa" "$SPICETIFY_STATE_DIR/login.spa" "$backup_dir/"
+    info "Migrated the existing vanilla .spa backup into $backup_dir."
+fi
+
 config_hash="$(sha256sum "$SPICETIFY_CONFIG_FILE" | awk '{print $1}')"
 APPLIED_MARKER="$SETUP_DIR/.spicetify-applied"
 
@@ -171,7 +188,6 @@ fi
 # Adopt a successful manual Spicetify apply from before this launcher tracked
 # its state. This is safe only when the Marketplace route exists and both
 # vanilla .spa files plus their version/CLI metadata match the active prefs.
-adopt_backup_dir="$SPICETIFY_STATE"
 adopt_prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
     value = $2
     gsub(/^[[:space:]]*"/, "", value)
@@ -199,8 +215,6 @@ fi
 
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
-# With SPICETIFY_STATE explicitly set, Spicetify 2.46.7 uses it as-is.
-backup_dir="$SPICETIFY_STATE"
 prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
     value = $2
     gsub(/^[[:space:]]*"/, "", value)
