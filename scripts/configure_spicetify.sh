@@ -14,6 +14,17 @@ require_command sha256sum
 require_command awk
 require_command grep
 
+# Force all Spicetify calls to use the project-owned config and state folders.
+spicetify_cmd() {
+    env \
+        XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
+        XDG_CACHE_HOME="$XDG_CACHE_HOME" \
+        XDG_STATE_HOME="$XDG_STATE_HOME" \
+        SPICETIFY_CONFIG="$SPICETIFY_CONFIG_DIR" \
+        SPICETIFY_STATE="$SPICETIFY_STATE" \
+        "$SPICETIFY_BIN" "$@"
+}
+
 installed_version="$(spotify_installed_version || true)"
 [[ "$installed_version" == "$TARGET_SPOTIFY_VERSION" ]] ||
     die "Spicetify setup expected Spotify $TARGET_SPOTIFY_VERSION, found ${installed_version:-unknown}."
@@ -28,10 +39,10 @@ SPOTIFY_PATH="$(spotify_install_path)" ||
     mkdir -p "$(dirname -- "$PREFS_PATH")"
 
 # Always use the project-owned Flatpak path and the real per-user Spotify prefs.
-"$SPICETIFY_BIN" config spotify_path "$SPOTIFY_PATH" >/dev/null
-"$SPICETIFY_BIN" config prefs_path "$PREFS_PATH" >/dev/null
+spicetify_cmd config spotify_path "$SPOTIFY_PATH" >/dev/null
+spicetify_cmd config prefs_path "$PREFS_PATH" >/dev/null
 # Avoid a separate GitHub API release check on every launcher run.
-"$SPICETIFY_BIN" config check_spicetify_update 0 >/dev/null
+spicetify_cmd config check_spicetify_update 0 >/dev/null
 
 ini_value() {
     local section="$1"
@@ -111,16 +122,16 @@ case "|$apps_compact|" in
         else
             current_apps="marketplace"
         fi
-        "$SPICETIFY_BIN" config custom_apps "$current_apps" >/dev/null
+        spicetify_cmd config custom_apps "$current_apps" >/dev/null
         ;;
 esac
 
 current_theme="$(ini_value Setting current_theme)"
 if [[ -z "$current_theme" ]]; then
-    "$SPICETIFY_BIN" config current_theme marketplace >/dev/null
+    spicetify_cmd config current_theme marketplace >/dev/null
 fi
-"$SPICETIFY_BIN" config inject_css 1 >/dev/null
-"$SPICETIFY_BIN" config replace_colors 1 >/dev/null
+spicetify_cmd config inject_css 1 >/dev/null
+spicetify_cmd config replace_colors 1 >/dev/null
 
 # A first launch is needed for Spotify to create its preferences file. Do not
 # attempt a backup/apply until the user has opened Spotify and logged in.
@@ -131,7 +142,7 @@ fi
 [[ -r "$PREFS_PATH" && -w "$PREFS_PATH" ]] ||
     die "Spotify preferences are not readable and writable: $PREFS_PATH"
 
-cli_version="$("$SPICETIFY_BIN" --version | tail -n 1 | tr -d '\r')"
+cli_version="$(spicetify_cmd --version | tail -n 1 | tr -d '\r')"
 config_hash="$(sha256sum "$SPICETIFY_CONFIG_FILE" | awk '{print $1}')"
 APPLIED_MARKER="$SETUP_DIR/.spicetify-applied"
 
@@ -160,7 +171,7 @@ fi
 # Adopt a successful manual Spicetify apply from before this launcher tracked
 # its state. This is safe only when the Marketplace route exists and both
 # vanilla .spa files plus their version/CLI metadata match the active prefs.
-adopt_backup_dir="$SPICETIFY_STATE"
+adopt_backup_dir="$SPICETIFY_STATE/Backup"
 adopt_prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
     value = $2
     gsub(/^[[:space:]]*"/, "", value)
@@ -188,9 +199,8 @@ fi
 
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
-# Spicetify 2.46.7 treats SPICETIFY_STATE as the backup directory itself
-# when the environment variable is set; .spa files are directly in this path.
-backup_dir="$SPICETIFY_STATE"
+# Spicetify 2.46.7 appends "Backup" to the SPICETIFY_STATE directory.
+backup_dir="$SPICETIFY_STATE/Backup"
 prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
     value = $2
     gsub(/^[[:space:]]*"/, "", value)
@@ -221,13 +231,30 @@ if [[ "$backup_has_spa" == "1" ]]; then
     info "Reusing the existing vanilla .spa backup at $backup_dir."
     info "Verified backup version: $backup_version; preferences version: $prefs_version; Spicetify CLI: $cli_version."
     run_with_progress "Applying Spicetify to Spotify" \
-        "$SPICETIFY_BIN" apply --no-restart ||
+        spicetify_cmd apply --no-restart ||
         die "Spicetify apply failed. The CLI will report if its existing backup does not match the Spotify prefs."
 else
-    info "No vanilla Spicetify .spa backup exists. Creating one, then applying."
-    run_with_progress "Backing up and applying Spicetify" \
-        "$SPICETIFY_BIN" backup apply --no-restart ||
-        die "Spicetify backup/apply failed. If Spotify is already modified without a backup, restore or reinstall the pinned Spotify build before retrying."
+    info "No vanilla Spicetify .spa backup exists. Creating and verifying it before applying."
+
+    [[ -s "$SPOTIFY_PATH/Apps/xpui.spa" && -s "$SPOTIFY_PATH/Apps/login.spa" ]] ||
+        die "The pinned Spotify Apps directory does not contain both vanilla xpui.spa and login.spa archives. Refusing to create an incomplete backup."
+
+    run_with_progress "Creating vanilla Spicetify backup" \
+        spicetify_cmd backup ||
+        die "Spicetify could not create its vanilla backup. No apply step was attempted."
+
+    [[ -s "$backup_dir/xpui.spa" && -s "$backup_dir/login.spa" ]] ||
+        die "Spicetify reported a successful backup, but both archives were not found in $backup_dir. Check the isolated SPICETIFY_STATE path before retrying."
+
+    backup_version="$(ini_value Backup version)"
+    backup_cli_version="$(ini_value Backup with)"
+    [[ "$backup_version" == "$prefs_version" && "$backup_cli_version" == "$cli_version" ]] ||
+        die "The newly created backup metadata does not match Spotify prefs version $prefs_version and Spicetify CLI $cli_version. No apply step was attempted."
+
+    info "Verified vanilla backup: $backup_dir"
+    run_with_progress "Applying Spicetify to Spotify" \
+        spicetify_cmd apply --no-restart ||
+        die "Spicetify apply failed after creating a verified vanilla backup."
 fi
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
