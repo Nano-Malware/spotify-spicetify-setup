@@ -191,6 +191,8 @@ reinstall_pinned_spotify() {
     flatpak mask --user "$APP_ID"
     SPOTIFY_PATH="$(spotify_install_path)" ||
         die "Could not locate the reinstalled project-owned Spotify app."
+    apps_dir="$SPOTIFY_PATH/Apps"
+    marketplace_entry="$apps_dir/xpui/spicetify-routes-marketplace.js"
     spicetify_cmd config spotify_path "$SPOTIFY_PATH" >/dev/null
 }
 
