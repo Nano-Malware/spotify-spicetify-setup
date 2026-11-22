@@ -153,25 +153,29 @@ fi
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
 backup_dir="$SPICETIFY_STATE/Backup"
-backup_exists=0
-if [[ -d "$backup_dir" ]] && find "$backup_dir" -mindepth 1 -print -quit | grep -q .; then
-    backup_exists=1
+backup_has_spa=0
+if [[ -d "$backup_dir" ]] &&
+   find "$backup_dir" -type f -name '*.spa' -print -quit | grep -q .; then
+    backup_has_spa=1
 fi
 
-if [[ "$backup_exists" == "1" &&
-      "$backup_version" == "$installed_version" &&
-      "$backup_cli_version" == "$cli_version" ]]; then
-    info "A matching vanilla Spotify backup already exists; applying the configured Marketplace setup."
+if [[ "$backup_has_spa" == "1" ]]; then
+    [[ -n "$backup_version" ]] ||
+        die "A Spicetify .spa backup exists, but its version metadata is empty. Refusing to overwrite it."
+    [[ "$backup_cli_version" == "$cli_version" ]] ||
+        die "The existing backup was created by Spicetify $backup_cli_version, while the installed CLI is $cli_version. Restore or reinstall the pinned Spotify build before changing Spicetify versions."
+
+    info "Reusing the existing vanilla .spa backup (metadata version: $backup_version)."
+    info "The backup version is read from Spotify prefs, so it may differ from Flatpak's package version."
     run_with_progress "Applying Spicetify to Spotify" \
         "$SPICETIFY_BIN" apply --no-restart ||
-        die "Spicetify apply failed. Review the messages above before retrying."
+        die "Spicetify apply failed. The CLI will report if its existing backup does not match the Spotify prefs."
 else
-    info "Creating or refreshing the vanilla Spotify backup, then applying Spicetify."
+    info "No vanilla Spicetify .spa backup exists. Creating one, then applying."
     run_with_progress "Backing up and applying Spicetify" \
         "$SPICETIFY_BIN" backup apply --no-restart ||
-        die "Spicetify backup/apply failed. If an old backup is reported as non-vanilla, restore or reinstall the pinned Spotify build before retrying."
+        die "Spicetify backup/apply failed. If Spotify is already modified without a backup, restore or reinstall the pinned Spotify build before retrying."
 fi
-
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
 [[ "$backup_version" == "$installed_version" && "$backup_cli_version" == "$cli_version" ]] ||
