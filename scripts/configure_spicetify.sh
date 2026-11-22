@@ -175,7 +175,7 @@ if [[ "$spotify_still_patched" == "1" &&
       -s "$adopt_backup_dir/login.spa" &&
       "$adopt_backup_version" == "$adopt_prefs_version" &&
       "$adopt_backup_cli" == "$cli_version" ]]; then
-    printf '%s\\n%s\\n%s\\n' "$installed_version" "$cli_version" "$config_hash" > "$APPLIED_MARKER.tmp"
+    printf '%s\n%s\n%s\n' "$installed_version" "$cli_version" "$config_hash" > "$APPLIED_MARKER.tmp"
     mv -- "$APPLIED_MARKER.tmp" "$APPLIED_MARKER"
     ok "Existing Spicetify and Marketplace patch plus matching vanilla backup detected; recording setup and skipping patching."
     exit 0
