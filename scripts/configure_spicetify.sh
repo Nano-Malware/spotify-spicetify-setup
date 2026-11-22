@@ -157,6 +157,30 @@ if [[ "$spotify_still_patched" == "1" &&
     exit 0
 fi
 
+# Adopt a successful manual Spicetify apply from before this launcher tracked
+# its state. This is safe only when the Marketplace route exists and both
+# vanilla .spa files plus their version/CLI metadata match the active prefs.
+adopt_backup_dir="$SPICETIFY_STATE"
+adopt_prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
+    value = $2
+    gsub(/^[[:space:]]*"/, "", value)
+    gsub(/"[[:space:]]*$/, "", value)
+    print value
+    exit
+}' "$PREFS_PATH")"
+adopt_backup_version="$(ini_value Backup version)"
+adopt_backup_cli="$(ini_value Backup with)"
+if [[ "$spotify_still_patched" == "1" &&
+      -s "$adopt_backup_dir/xpui.spa" &&
+      -s "$adopt_backup_dir/login.spa" &&
+      "$adopt_backup_version" == "$adopt_prefs_version" &&
+      "$adopt_backup_cli" == "$cli_version" ]]; then
+    printf '%s\\n%s\\n%s\\n' "$installed_version" "$cli_version" "$config_hash" > "$APPLIED_MARKER.tmp"
+    mv -- "$APPLIED_MARKER.tmp" "$APPLIED_MARKER"
+    ok "Existing Spicetify and Marketplace patch plus matching vanilla backup detected; recording setup and skipping patching."
+    exit 0
+fi
+
 # Never rewrite the Spotify app files while a Spotify instance is running.
 if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
     die "Spotify is currently running. Close every Spotify window completely, then run ./launch.sh again to apply Spicetify safely."
