@@ -258,7 +258,7 @@ else
         die "Spicetify could not create its vanilla backup. No apply step was attempted."
 
     [[ -s "$backup_dir/xpui.spa" && -s "$backup_dir/login.spa" ]] ||
-        die "Spicetify reported a successful backup, but both archives were not found in $backup_dir. Check the isolated SPICETIFY_STATE path before retrying."
+        die "Spicetify reported a successful backup, but both archives were not found in $backup_dir. Check the isolated XDG_STATE_HOME path before retrying."
 
     backup_version="$(ini_value Backup version)"
     backup_cli_version="$(ini_value Backup with)"
