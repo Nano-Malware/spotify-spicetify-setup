@@ -34,8 +34,12 @@ ensure_user_spotify_installed
 
 # Keep the official Spicetify CLI available, but leave Spotify unpatched.
 if [[ ! -x "$SPICETIFY_BIN" ]]; then
-    "$PROJECT_DIR/scripts/install_spicetify.sh"
+    bash "$PROJECT_DIR/scripts/install_spicetify.sh"
 fi
+
+# Configure the project-owned Spicetify environment, install Marketplace if
+# missing, and apply it when the Spotify version/configuration needs patching.
+bash "$PROJECT_DIR/scripts/configure_spicetify.sh"
 
 ok "Launching Spotify $TARGET_SPOTIFY_VERSION from the Goinfre user installation."
 exec flatpak run --user "$APP_ID" "$@"
