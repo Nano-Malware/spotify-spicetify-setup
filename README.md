@@ -71,7 +71,7 @@ The historical Spotify app and Mesa extension are masked in the project-owned us
 
 ## Requirements
 
-Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, tar, awk, grep, flock, the `script` utility, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
+Linux x86_64, Flatpak 1.14 or newer, curl, sha256sum, tar, awk, grep, flock, unzip (only if Marketplace must be installed), the `script` utility, and at least 5 GiB free in the selected storage location. Network access to GitHub, Flathub, and Snapcraft is needed for first-time setup. This project does not install system packages or update glibc.
 
 ## Security
 
