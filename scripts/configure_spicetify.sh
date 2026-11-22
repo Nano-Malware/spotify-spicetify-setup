@@ -173,8 +173,11 @@ reinstall_pinned_spotify() {
         die "Spotify is running. Close it before repairing its project-owned app files."
     fi
 
+    bash "$SCRIPT_DIR/install_legacy_spotify.sh" ||
+        die "Could not prepare the verified local Spotify source for recovery."
+
     flatpak remotes --user --columns=name | grep -Fxq spotify-legacy ||
-        die "The project's verified spotify-legacy Flatpak remote is missing; cannot safely restore the pinned app."
+        die "The installer completed without registering the verified spotify-legacy Flatpak remote."
 
     warn "Spicetify found modified Spotify files without a usable native state. Reinstalling only the pinned Goinfre app; your Spotify profile and login data are kept."
     flatpak mask --user --remove "$APP_ID" >/dev/null 2>&1 || true
