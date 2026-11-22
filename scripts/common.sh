@@ -150,7 +150,7 @@ init_paths() {
     export XDG_DATA_HOME="$SETUP_DIR/xdg-data"
     export XDG_STATE_HOME="$SETUP_DIR/xdg-state"
     export SPICETIFY_CONFIG="$XDG_CONFIG_HOME/spicetify"
-    export SPICETIFY_STATE="$XDG_STATE_HOME/spicetify"
+    unset SPICETIFY_STATE
     export PATH="$SETUP_DIR/bin:$PATH"
 
     BIN_DIR="$SETUP_DIR/bin"
