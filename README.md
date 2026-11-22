@@ -15,9 +15,11 @@ No sudo or administrator access is needed on the user's machine. The separate Gi
 3. Installs the Freedesktop **24.08** runtime into the project-owned Goinfre installation. For graphics, it verifies the existing system Mesa **25.2.6** `24.08` and `24.08extra` deployments, re-exports their installed files and metadata into temporary local runtime bundles, and pins the resulting commits in Goinfre. It does not download the newer incompatible Flathub Mesa branch or modify system Flatpak.
 4. Verifies the Spotify version, runtime, and Mesa version, then masks the Spotify app and Mesa extension to avoid incompatible automatic updates.
 5. Installs the official Spicetify CLI if it is missing.
-6. Launches Spotify without modifying Spotify's application files.
+6. Configures Spicetify to use the Goinfre Spotify files and the existing home-directory Spotify preferences. It disables the CLI's optional update check to avoid an unnecessary GitHub API request.
+7. Installs the official Marketplace release if its files are missing, preserving existing custom apps and themes.
+8. When Spotify is closed, creates or reuses a version-matched vanilla backup and applies Spicetify plus Marketplace. A state marker avoids repeating the patch when the Spotify version and configuration have not changed.
 
-The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. Spicetify is installed as a CLI only. The launcher does not install Marketplace or apply themes/extensions.
+The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. Spicetify and Marketplace are configured and applied automatically by the launcher.
 
 The Flatpak repository is rebuilt by GitHub Actions from the historical Flathub packaging source. This app uses Flatpak extra-data, so the project distributes the OSTree repository archive rather than a single-file `.flatpak` bundle; the repository retains the metadata required for the extra-data download. The proprietary Spotify payload is fetched directly from its original Snapcraft source during installation and verified using the SHA-256 recorded in the historical Flathub manifest. The Flathub packaging is community-maintained and is not verified by, affiliated with, or supported by Spotify.
 
