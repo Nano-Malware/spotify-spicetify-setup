@@ -18,6 +18,86 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1. Install it using your system's approved user-space method or ask your administrator."
 }
 
+run_with_progress() {
+    local label="$1"
+    shift
+    local log_file
+    local status_file
+    local pid
+    local status
+    local started
+    local elapsed
+    local frame=0
+    local width=30
+    local block=5
+    local travel
+    local phase
+    local position
+    local after
+    local bar
+
+    log_file="$(mktemp "$SETUP_DIR/.progress.XXXXXX")"
+    status_file="$log_file.status"
+
+    (
+        set +e
+        "$@" >"$log_file" 2>&1
+        status=$?
+        printf '%s\n' "$status" >"$status_file"
+    ) &
+    pid=$!
+
+    started=$SECONDS
+    travel=$((width - block))
+
+    if [[ -t 2 ]]; then
+        while [[ ! -s "$status_file" ]]; do
+            phase=$((frame % (travel * 2)))
+            if (( phase > travel )); then
+                position=$((travel * 2 - phase))
+            else
+                position="$phase"
+            fi
+            after=$((position + block))
+            printf -v bar '%*s' "$width" ''
+            bar="\${bar// /-}"
+            bar="\${bar:0:position}#####\${bar:after}"
+            elapsed=$((SECONDS - started))
+            printf '\r\033[K  \033[1;35m[%s]\033[0m %-38.38s %02d:%02d' \
+                "$bar" "$label" "$((elapsed / 60))" "$((elapsed % 60))" >&2
+            sleep 0.12
+            frame=$((frame + 1))
+        done
+    fi
+
+    wait "$pid" || true
+    status="$(cat "$status_file")"
+    elapsed=$((SECONDS - started))
+
+    if [[ -t 2 ]]; then
+        if [[ "$status" == "0" ]]; then
+            printf '\r\033[K  \033[1;32m[done]\033[0m %-38.38s %02d:%02d\n' \
+                "$label" "$((elapsed / 60))" "$((elapsed % 60))" >&2
+        else
+            printf '\r\033[K  \033[1;31m[fail]\033[0m %-38.38s %02d:%02d\n' \
+                "$label" "$((elapsed / 60))" "$((elapsed % 60))" >&2
+        fi
+    else
+        printf '[%s] %s (%02d:%02d)\n' \
+            "$([[ "$status" == "0" ]] && printf OK || printf FAIL)" \
+            "$label" "$((elapsed / 60))" "$((elapsed % 60))" >&2
+    fi
+
+    if [[ "$status" == "0" ]]; then
+        cat "$log_file"
+    else
+        cat "$log_file" >&2
+    fi
+
+    rm -f -- "$log_file" "$status_file"
+    return "$status"
+}
+
 spotify_is_installed() {
     command -v flatpak >/dev/null 2>&1 || return 1
     flatpak info --user "$APP_ID" >/dev/null 2>&1
