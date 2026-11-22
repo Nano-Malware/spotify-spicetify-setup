@@ -32,7 +32,7 @@ fi
 bash "$PROJECT_DIR/scripts/install_legacy_spotify.sh"
 ensure_user_spotify_installed
 
-# Keep the official Spicetify CLI available, but leave Spotify unpatched.
+# Keep the official Spicetify CLI available before configuring and applying it.
 if [[ ! -x "$SPICETIFY_BIN" ]]; then
     bash "$PROJECT_DIR/scripts/install_spicetify.sh"
 fi
