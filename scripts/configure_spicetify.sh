@@ -171,7 +171,7 @@ fi
 # Adopt a successful manual Spicetify apply from before this launcher tracked
 # its state. This is safe only when the Marketplace route exists and both
 # vanilla .spa files plus their version/CLI metadata match the active prefs.
-adopt_backup_dir="$SPICETIFY_STATE/Backup"
+adopt_backup_dir="$SPICETIFY_STATE"
 adopt_prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
     value = $2
     gsub(/^[[:space:]]*"/, "", value)
@@ -199,8 +199,8 @@ fi
 
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
-# Spicetify 2.46.7 appends "Backup" to the SPICETIFY_STATE directory.
-backup_dir="$SPICETIFY_STATE/Backup"
+# With SPICETIFY_STATE explicitly set, Spicetify 2.46.7 uses it as-is.
+backup_dir="$SPICETIFY_STATE"
 prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
     value = $2
     gsub(/^[[:space:]]*"/, "", value)
