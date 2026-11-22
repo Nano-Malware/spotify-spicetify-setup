@@ -173,8 +173,13 @@ mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/
     die "Mesa commit verification failed. The locally exported 25.2.6 commits are not active."
 
 info "Verified Goinfre Mesa $mesa_version / $mesa_extra_version and both locally pinned commits."
-if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_RUNTIME" || "$current_ref" != "$TARGET_REF" ]]; then
-    info "Downloading the verified Spotify $TARGET_VERSION repository archive..."
+repo_is_valid=0
+if [[ -f "$LOCAL_REPO_DIR/config" && -s "$LOCAL_REPO_DIR/summary" && -d "$LOCAL_REPO_DIR/objects" ]]; then
+    repo_is_valid=1
+fi
+
+if [[ "$repo_is_valid" != "1" ]]; then
+    info "The project-owned Spotify repository is missing or incomplete. Downloading the verified archive."
     if ! run_with_progress "Downloading Spotify Flatpak repository" curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
         die "The Spotify $TARGET_VERSION repository archive is not available yet. Check the GitHub Actions build workflow: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
     fi
@@ -202,25 +207,36 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
 
     rm -rf -- "$LOCAL_REPO_DIR"
     mv -- "$STAGED_REPO" "$LOCAL_REPO_DIR"
-    REPO_URL="file://$LOCAL_REPO_DIR"
+fi
 
-    if flatpak remotes --user --columns=name | grep -Fxq "$REMOTE_NAME"; then
-        flatpak remote-modify --user --no-gpg-verify --url="$REPO_URL" "$REMOTE_NAME"
-    else
-        flatpak remote-add --user --no-gpg-verify "$REMOTE_NAME" "$REPO_URL"
-    fi
+REPO_URL="file://$LOCAL_REPO_DIR"
+if flatpak remotes --user --columns=name | grep -Fxq "$REMOTE_NAME"; then
+    flatpak remote-modify --user --no-gpg-verify --url="$REPO_URL" "$REMOTE_NAME"
+else
+    info "Registering the project-owned Spotify repository in the Goinfre Flatpak installation."
+    flatpak remote-add --user --no-gpg-verify "$REMOTE_NAME" "$REPO_URL"
+fi
 
-    if ! REMOTE_REF="$(flatpak remote-info --user --show-ref "$REMOTE_NAME" "$APP_ID//stable")"; then
-        die "The local Spotify repository does not expose the expected stable application ref."
-    fi
-    [[ "$REMOTE_REF" == "app/com.spotify.Client/x86_64/stable" ]] ||
-        die "Unexpected application ref in the local Spotify repository: $REMOTE_REF"
+if ! REMOTE_REF="$(flatpak remote-info --user --show-ref "$REMOTE_NAME" "$APP_ID//stable")"; then
+    die "The local Spotify repository does not expose the expected stable application ref."
+fi
+[[ "$REMOTE_REF" == "$TARGET_REF" ]] ||
+    die "Unexpected application ref in the local Spotify repository: $REMOTE_REF"
 
-    if ! REMOTE_METADATA="$(flatpak remote-info --user --show-metadata "$REMOTE_NAME" "$APP_ID//stable")"; then
-        die "Could not read Spotify's Flatpak metadata from the local repository."
+if ! REMOTE_METADATA="$(flatpak remote-info --user --show-metadata "$REMOTE_NAME" "$APP_ID//stable")"; then
+    die "Could not read Spotify's Flatpak metadata from the local repository."
+fi
+printf '%s\n' "$REMOTE_METADATA" | grep -Fq '[Extra Data]' ||
+    die "Spotify's extra-data metadata is missing from the local Flatpak repository."
+
+current_origin="$(flatpak info --user --show-origin "$APP_ID" 2>/dev/null || true)"
+if [[ "$current_version" != "$TARGET_VERSION" ||
+      "$current_runtime" != "$TARGET_RUNTIME" ||
+      "$current_ref" != "$TARGET_REF" ||
+      "$current_origin" != "$REMOTE_NAME" ]]; then
+    if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
+        die "Spotify is running. Close it before replacing the project-owned user installation."
     fi
-    printf '%s\n' "$REMOTE_METADATA" | grep -Fq '[Extra Data]' ||
-        die "Spotify's extra-data metadata is missing from the local Flatpak repository."
 
     flatpak mask --user --remove "$APP_ID" >/dev/null 2>&1 || true
     if flatpak info --user "$APP_ID" >/dev/null 2>&1; then
@@ -234,6 +250,8 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
     installed_origin="$(flatpak info --user --show-origin "$APP_ID")"
     [[ "$installed_origin" == "$REMOTE_NAME" ]] ||
         die "Spotify was installed from unexpected origin '$installed_origin', not '$REMOTE_NAME'."
+else
+    info "The requested Spotify build is already installed from the verified project repository."
 fi
 
 installed_version="$(spotify_installed_version || true)"
