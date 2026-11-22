@@ -33,9 +33,13 @@ info "Marketplace is intentionally not installed; this launcher installs the CLI
 # 'script' supplies the TTY required by the upstream installer. The single
 # 'n' answers its Marketplace prompt; it does not accept or run any other
 # interactive action. HOME and PATH are isolated from existing installations.
-if ! printf 'n\n' | script -q -e -c \
-    "env HOME='$INSTALL_HOME' PATH='$CLEAN_PATH' SHELL=/bin/sh sh -c 'curl -fsSL https://raw.githubusercontent.com/spicetify/cli/main/install.sh | sh'" \
-    /dev/null 2>&1 | tee "$INSTALL_LOG"; then
+run_official_installer() {
+    printf 'n\n' | script -q -e -c \
+        "env HOME='$INSTALL_HOME' PATH='$CLEAN_PATH' SHELL=/bin/sh sh -c 'curl -fsSL https://raw.githubusercontent.com/spicetify/cli/main/install.sh | sh'" \
+        /dev/null 2>&1 | tee "$INSTALL_LOG"
+}
+
+if ! run_with_progress "Installing the official Spicetify CLI" run_official_installer; then
     warn "The official Spicetify installer failed. Details are saved in: $INSTALL_LOG"
     die "Could not install Spicetify. Check your network connection and the installer log."
 fi
