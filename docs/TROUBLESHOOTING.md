@@ -84,3 +84,10 @@ The main `./launch.sh` entry point now also runs `scripts/configure_spicetify.sh
 The first run may need a valid Spotify preferences file. If it does not exist yet, the launcher starts Spotify once without patching; sign in, let Spotify create its preferences, close it, and rerun `./launch.sh`.
 
 The Spicetify CLI may still print a remote CSS-map warning if GitHub rate-limits unauthenticated requests. It falls back to its bundled local CSS map. On Spotify 1.2.63 and older, the warning about not finding the V8 snapshot start marker is also documented by Spicetify as safe to ignore; preprocessing can still complete. A successful `Patching files` completion and `Spicetify and Marketplace are applied` message indicate the patch step completed.
+
+
+### Existing Spicetify backup and Spotify prefs version
+
+Spicetify records the Spotify version from the per-user `prefs` file, not from Flatpak's installed package metadata. Because this project intentionally keeps the existing per-user prefs path, its recorded version can refer to a previously used Spotify build (for example, a newer system Flatpak) even while the Goinfre app package is pinned to 1.2.52.442.
+
+The launcher therefore does **not** compare Spicetify's backup-version label directly with Flatpak's package version. When a valid `.spa` backup already exists and was made with the installed Spicetify CLI version, it reuses that backup and runs `spicetify apply --no-restart`. Spicetify itself checks whether that backup matches the current prefs metadata. It only runs `backup apply` when no `.spa` backup exists. It also verifies the actual patched Marketplace route file before skipping an unchanged apply, so a Flatpak reinstall that restores stock app files cannot be mistaken for an already-patched install.
