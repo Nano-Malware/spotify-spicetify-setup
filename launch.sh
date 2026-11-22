@@ -2,6 +2,36 @@
 # Single entry point: install the compatible Spotify build, then launch it.
 set -Eeuo pipefail
 
+show_help() {
+    cat <<'EOF'
+Spotify + Spicetify setup
+
+Usage:
+  ./launch.sh [options]
+
+Options:
+  -h, --help    Show this help and exit without installing or launching anything.
+
+Description:
+  Installs or verifies the pinned Spotify build and compatible Mesa runtime,
+  configures Spicetify and Marketplace, applies Spicetify when needed, then
+  launches Spotify.
+
+Examples:
+  ./launch.sh
+  ./launch.sh --help
+
+Any other arguments are passed to Spotify.
+EOF
+}
+
+case "${1:-}" in
+    -h|--help)
+        show_help
+        exit 0
+        ;;
+esac
+
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$PROJECT_DIR/scripts/common.sh"
 
