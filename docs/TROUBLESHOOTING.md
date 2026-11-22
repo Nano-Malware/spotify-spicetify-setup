@@ -88,7 +88,7 @@ The Spicetify CLI may still print a remote CSS-map warning if GitHub rate-limits
 
 ### Spicetify first-run behavior
 
-Spicetify requires its own built-in `backup` command before the first `apply`. This is an upstream CLI requirement, not a repository-managed backup feature. The launcher uses Spicetify's native `backup apply --no-restart` flow for the first patch and `apply --no-restart` for later configuration changes. The repository does not copy, migrate, validate, or delete Spicetify backup files.
+Spicetify requires its own built-in `backup` command before the first `apply`. This is an upstream CLI requirement, not a repository-managed backup feature. The launcher uses Spicetify's native `backup apply --no-restart` flow for the first patch and `apply --no-restart` for later configuration changes. The repository does not copy, migrate, validate, or delete Spicetify backup files. If Spicetify reports that Spotify is not backed up and cannot be backed up in its current state, the launcher restores the project-owned pinned Spotify app from the verified local Flatpak repository, preserving the separate `~/.var/app/com.spotify.Client` profile, then retries Spicetify's native first-run command.
 
 Before patching, the launcher checks that Spotify's preferences record the pinned app version. If the profile has not been initialized for this Spotify build, it opens Spotify once; after you close it, the launcher completes Spicetify setup and opens the patched app. This keeps the first-run workflow inside one `./launch.sh` invocation.
 
