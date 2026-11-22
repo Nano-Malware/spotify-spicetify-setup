@@ -60,8 +60,8 @@ run_with_progress() {
             fi
             after=$((position + block))
             printf -v bar '%*s' "$width" ''
-            bar="\${bar// /-}"
-            bar="\${bar:0:position}#####\${bar:after}"
+            bar="${bar// /-}"
+            bar="${bar:0:position}#####${bar:after}"
             elapsed=$((SECONDS - started))
             printf '\r\033[K  \033[1;35m[%s]\033[0m %-38.38s %02d:%02d' \
                 "$bar" "$label" "$((elapsed / 60))" "$((elapsed % 60))" >&2
