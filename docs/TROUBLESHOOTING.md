@@ -67,3 +67,20 @@ Expected Spotify version is `1.2.52.442.g01893f92`; expected runtime is `org.fre
 ```
 
 The report displays app/runtime/graphics versions and storage information. It intentionally excludes Spotify preferences, credentials, cookies, tokens, and session data.
+
+
+## Automatic Spicetify and Marketplace setup
+
+The main `./launch.sh` entry point now also runs `scripts/configure_spicetify.sh` after the pinned Spotify app and Spicetify CLI are ready. It:
+
+- Sets Spicetify's config and state directories under the selected setup directory in Goinfre.
+- Points Spicetify at the project-owned Flatpak Spotify files and the existing `~/.var/app/com.spotify.Client/config/spotify/prefs` file.
+- Disables the optional Spicetify update check so ordinary launches do not make an extra GitHub API release request.
+- Installs Marketplace from its official release only when its app files are absent; it does not overwrite an existing Marketplace directory or other custom apps/themes.
+- Creates or reuses a vanilla backup for the installed Spotify version, then applies the configured theme and Marketplace app when needed.
+- Refuses to patch while Spotify is running. Close Spotify completely and rerun `./launch.sh`.
+- Stores an apply marker in the setup directory so unchanged configurations are not patched again on every launch.
+
+The first run may need a valid Spotify preferences file. If it does not exist yet, the launcher starts Spotify once without patching; sign in, let Spotify create its preferences, close it, and rerun `./launch.sh`.
+
+The Spicetify CLI may still print a remote CSS-map warning if GitHub rate-limits unauthenticated requests. It falls back to its bundled local CSS map. On Spotify 1.2.63 and older, the warning about not finding the V8 snapshot start marker is also documented by Spicetify as safe to ignore; preprocessing can still complete. A successful `Patching files` completion and `Spicetify and Marketplace are applied` message indicate the patch step completed.
