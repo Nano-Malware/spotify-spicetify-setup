@@ -135,13 +135,25 @@ cli_version="$("$SPICETIFY_BIN" --version | tail -n 1 | tr -d '\r')"
 config_hash="$(sha256sum "$SPICETIFY_CONFIG_FILE" | awk '{print $1}')"
 APPLIED_MARKER="$SETUP_DIR/.spicetify-applied"
 
-# Skip patching when the target Spotify version, Spicetify version, and config
-# are unchanged. This makes repeated launches quick and avoids rebaking backups.
-if [[ -f "$APPLIED_MARKER" &&
+# The marker alone is not enough: Flatpak can reinstall stock app files while
+# leaving Goinfre state intact. Confirm the patched Apps tree and Marketplace
+# entry still exist before skipping the apply step.
+apps_dir="$SPOTIFY_PATH/Apps"
+marketplace_entry="$apps_dir/xpui/spicetify-routes-marketplace.js"
+spotify_still_patched=0
+if [[ -d "$apps_dir/xpui" && -s "$marketplace_entry" ]] &&
+   ! find "$apps_dir" -maxdepth 1 -type f -name '*.spa' -print -quit | grep -q .; then
+    spotify_still_patched=1
+fi
+
+# Skip patching only when the target Spotify version, Spicetify version,
+# config, and patched Marketplace app are all unchanged.
+if [[ "$spotify_still_patched" == "1" &&
+      -f "$APPLIED_MARKER" &&
       "$(sed -n '1p' "$APPLIED_MARKER")" == "$installed_version" &&
       "$(sed -n '2p' "$APPLIED_MARKER")" == "$cli_version" &&
       "$(sed -n '3p' "$APPLIED_MARKER")" == "$config_hash" ]]; then
-    ok "Spicetify is already applied to Spotify $installed_version."
+    ok "Spicetify and Marketplace are already applied to Spotify $installed_version; skipping patching."
     exit 0
 fi
 
