@@ -53,6 +53,8 @@ MESA_VERSION="25.2.6"
 MESA_COMMIT="e7cca7bcddd35029a6cb5720367f49255a6be3d338eaf1e7a57945cbe84e03ec"
 MESA_EXTRA_COMMIT="765326f0e2abc4b69240f4283bb2437b04d468ce2377cf716d05b3d71a8e646e"
 MESA_PIN_FILE="$SETUP_DIR/.mesa-24.08-pinned"
+TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
+trap 'rm -rf -- "$TMP_DIR"' EXIT
 
 project_mesa_version="$(flatpak info --user "$MESA_REF" 2>/dev/null |
     awk -F': ' '/^[[:space:]]*Version:/ {print $2; exit}' || true)"
@@ -100,31 +102,29 @@ else
     [[ -n "$system_mesa_extra_location" && -d "$system_mesa_extra_location/files" && -f "$system_mesa_extra_location/metadata" ]] ||
         die "Could not read the installed system Mesa GL-extra deployment."
 
-    TMP_DIR="$(mktemp -d "$SETUP_DIR/.spotify-legacy.XXXXXX")"
-    trap 'rm -rf -- "$TMP_DIR"' EXIT
     MESA_EXPORT_REPO="$TMP_DIR/mesa-export-repo"
     mesa_bundle="$TMP_DIR/mesa-24.08.flatpak"
     mesa_extra_bundle="$TMP_DIR/mesa-24.08extra.flatpak"
 
     info "Re-exporting the verified system Mesa $MESA_VERSION deployment files into a temporary Flatpak repository."
-    mesa_export_output="$(flatpak build-export --runtime --files=files --arch=x86_64 \
+    mesa_export_output="$(run_with_progress "Exporting Mesa GL deployment" flatpak build-export --runtime --files=files --arch=x86_64 \
         --collection-id=org.flathub.Stable "$MESA_EXPORT_REPO" "$system_mesa_location" 24.08)"
     mesa_export_commit="$(printf '%s\n' "$mesa_export_output" |
         awk -F': ' '/^[[:space:]]*Commit:/ {print $2; exit}')"
     [[ -n "$mesa_export_commit" ]] ||
         die "Could not verify the exported Mesa GL commit."
 
-    mesa_extra_export_output="$(flatpak build-export --runtime --files=files --arch=x86_64 \
+    mesa_extra_export_output="$(run_with_progress "Exporting Mesa GL-extra deployment" flatpak build-export --runtime --files=files --arch=x86_64 \
         --collection-id=org.flathub.Stable "$MESA_EXPORT_REPO" "$system_mesa_extra_location" 24.08extra)"
     mesa_extra_export_commit="$(printf '%s\n' "$mesa_extra_export_output" |
         awk -F': ' '/^[[:space:]]*Commit:/ {print $2; exit}')"
     [[ -n "$mesa_extra_export_commit" ]] ||
         die "Could not verify the exported Mesa GL-extra commit."
 
-    flatpak build-update-repo "$MESA_EXPORT_REPO"
-    flatpak build-bundle --runtime "$MESA_EXPORT_REPO" "$mesa_bundle" \
+    run_with_progress "Generating local Mesa repository" flatpak build-update-repo "$MESA_EXPORT_REPO"
+    run_with_progress "Bundling Mesa 24.08 GL extension" flatpak build-bundle --runtime "$MESA_EXPORT_REPO" "$mesa_bundle" \
         org.freedesktop.Platform.GL.default 24.08
-    flatpak build-bundle --runtime "$MESA_EXPORT_REPO" "$mesa_extra_bundle" \
+    run_with_progress "Bundling Mesa 24.08 GL-extra extension" flatpak build-bundle --runtime "$MESA_EXPORT_REPO" "$mesa_extra_bundle" \
         org.freedesktop.Platform.GL.default 24.08extra
     [[ -s "$mesa_bundle" && -s "$mesa_extra_bundle" ]] ||
         die "Could not create both Mesa runtime bundles."
@@ -142,9 +142,9 @@ else
     fi
 
     info "Installing the verified Mesa 25.2.6 GL bundle in Goinfre."
-    flatpak install --user --noninteractive --assumeyes --bundle "$mesa_bundle"
+    run_with_progress "Installing Mesa 25.2.6 GL extension" flatpak install --user --noninteractive --assumeyes --bundle "$mesa_bundle"
     info "Installing the verified Mesa 25.2.6 GL-extra bundle in Goinfre."
-    flatpak install --user --noninteractive --assumeyes --bundle "$mesa_extra_bundle"
+    run_with_progress "Installing Mesa 25.2.6 GL-extra extension" flatpak install --user --noninteractive --assumeyes --bundle "$mesa_extra_bundle"
 
     installed_mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true)"
     installed_mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/null || true)"
@@ -175,10 +175,10 @@ mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/
 info "Verified Goinfre Mesa $mesa_version / $mesa_extra_version and both locally pinned commits."
 if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_RUNTIME" || "$current_ref" != "$TARGET_REF" ]]; then
     info "Downloading the verified Spotify $TARGET_VERSION repository archive..."
-    if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
+    if ! run_with_progress "Downloading Spotify Flatpak repository" curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
         die "The Spotify $TARGET_VERSION repository archive is not available yet. Check the GitHub Actions build workflow: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
     fi
-    if ! curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$CHECKSUM_NAME" -o "$TMP_DIR/$CHECKSUM_NAME"; then
+    if ! run_with_progress "Downloading repository checksum" curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$CHECKSUM_NAME" -o "$TMP_DIR/$CHECKSUM_NAME"; then
         die "The Spotify repository archive checksum is not available. Check the GitHub Actions build workflow."
     fi
 
@@ -229,7 +229,7 @@ if [[ "$current_version" != "$TARGET_VERSION" || "$current_runtime" != "$TARGET_
     fi
 
     info "Installing Spotify $TARGET_VERSION from the verified local Flatpak repository..."
-    flatpak install --user --noninteractive --assumeyes "$REMOTE_NAME" "$APP_ID//stable"
+    run_with_progress "Installing Spotify $TARGET_VERSION" flatpak install --user --noninteractive --assumeyes "$REMOTE_NAME" "$APP_ID//stable"
 
     installed_origin="$(flatpak info --user --show-origin "$APP_ID")"
     [[ "$installed_origin" == "$REMOTE_NAME" ]] ||
