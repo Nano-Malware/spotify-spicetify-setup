@@ -17,7 +17,7 @@ No sudo or administrator access is needed on the user's machine. The separate Gi
 5. Installs the official Spicetify CLI if it is missing.
 6. Configures Spicetify to use the Goinfre Spotify files and the existing home-directory Spotify preferences. It disables the CLI's optional update check to avoid an unnecessary GitHub API request.
 7. Installs the official Marketplace release if its files are missing, preserving existing custom apps and themes.
-8. Initializes Spotify's profile on its first launch when needed, then uses Spicetify's native first-time setup and applies Marketplace. A state marker avoids repeating the patch when the Spotify version and configuration have not changed. The repository does not manage, copy, migrate, or delete backup files.
+8. Initializes Spotify's profile on its first launch when needed, then uses Spicetify's native first-time setup and applies Marketplace. A state marker avoids repeating the patch when the Spotify version and configuration have not changed. The repository does not manage, copy, migrate, or delete backup files. If Spicetify detects an incomplete patched Spotify app without a usable native state, the launcher reinstalls only the pinned project-owned app from its verified local Flatpak repository and retries; the user's Spotify profile is kept.
 
 The selected Spotify build and 24.08 graphics stack reproduce the combination that previously worked smoothly on the user's older computer. Spicetify and Marketplace are configured and applied automatically by the launcher.
 
