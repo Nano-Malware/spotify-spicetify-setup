@@ -164,21 +164,38 @@ fi
 
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
-backup_dir="$SPICETIFY_STATE/Backup"
+# Spicetify 2.46.7 treats SPICETIFY_STATE as the backup directory itself
+# when the environment variable is set; .spa files are directly in this path.
+backup_dir="$SPICETIFY_STATE"
+prefs_version="$(awk -F= '$1 == "app.last-launched-version" {
+    value = $2
+    gsub(/^[[:space:]]*"/, "", value)
+    gsub(/"[[:space:]]*$/, "", value)
+    print value
+    exit
+}' "$PREFS_PATH")"
+[[ -n "$prefs_version" ]] ||
+    die "Could not read app.last-launched-version from Spotify preferences: $PREFS_PATH"
+
+backup_has_xpui=0
+backup_has_login=0
+[[ -s "$backup_dir/xpui.spa" ]] && backup_has_xpui=1
+[[ -s "$backup_dir/login.spa" ]] && backup_has_login=1
 backup_has_spa=0
-if [[ -d "$backup_dir" ]] &&
-   find "$backup_dir" -type f -name '*.spa' -print -quit | grep -q .; then
+if [[ "$backup_has_xpui" == "1" && "$backup_has_login" == "1" ]]; then
     backup_has_spa=1
+elif [[ "$backup_has_xpui" == "1" || "$backup_has_login" == "1" ]]; then
+    die "The existing Spicetify backup is incomplete: expected both $backup_dir/xpui.spa and $backup_dir/login.spa. Refusing to overwrite it."
 fi
 
 if [[ "$backup_has_spa" == "1" ]]; then
-    [[ -n "$backup_version" ]] ||
-        die "A Spicetify .spa backup exists, but its version metadata is empty. Refusing to overwrite it."
+    [[ "$backup_version" == "$prefs_version" ]] ||
+        die "The existing Spicetify backup is for Spotify $backup_version, but the active prefs file records $prefs_version. Refusing to overwrite or apply from a mismatched backup."
     [[ "$backup_cli_version" == "$cli_version" ]] ||
         die "The existing backup was created by Spicetify $backup_cli_version, while the installed CLI is $cli_version. Restore or reinstall the pinned Spotify build before changing Spicetify versions."
 
-    info "Reusing the existing vanilla .spa backup (metadata version: $backup_version)."
-    info "The backup version is read from Spotify prefs, so it may differ from Flatpak's package version."
+    info "Reusing the existing vanilla .spa backup at $backup_dir."
+    info "Verified backup version: $backup_version; preferences version: $prefs_version; Spicetify CLI: $cli_version."
     run_with_progress "Applying Spicetify to Spotify" \
         "$SPICETIFY_BIN" apply --no-restart ||
         die "Spicetify apply failed. The CLI will report if its existing backup does not match the Spotify prefs."
@@ -190,8 +207,8 @@ else
 fi
 backup_version="$(ini_value Backup version)"
 backup_cli_version="$(ini_value Backup with)"
-[[ "$backup_version" == "$installed_version" && "$backup_cli_version" == "$cli_version" ]] ||
-    die "Spicetify did not record a backup for Spotify $installed_version with CLI $cli_version."
+[[ "$backup_version" == "$prefs_version" && "$backup_cli_version" == "$cli_version" ]] ||
+    die "Spicetify did not record a backup matching preferences version $prefs_version with CLI $cli_version."
 
 config_hash="$(sha256sum "$SPICETIFY_CONFIG_FILE" | awk '{print $1}')"
 printf '%s\n%s\n%s\n' "$installed_version" "$cli_version" "$config_hash" > "$APPLIED_MARKER.tmp"
