@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Detect the host and choose a safe project-owned storage location.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -8,67 +9,85 @@ source "$SCRIPT_DIR/common.sh"
 require_command uname
 require_command df
 require_command awk
-require_command stat
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 [[ "$OS" == "Linux" ]] || die "This first version supports Linux only (detected: $OS)."
 [[ "$ARCH" == "x86_64" ]] || die "This Spotify package is built for x86_64, not $ARCH."
 [[ -r /etc/os-release ]] || die "Cannot identify the Linux distribution."
-# shellcheck disable=SC1091
+# shellcheck source=/etc/os-release
 source /etc/os-release
-[[ "${ID:-}" == "ubuntu" || "${ID_LIKE:-}" == *ubuntu* || "${ID_LIKE:-}" == *debian* ]] || warn "This is not a detected Ubuntu/Debian system; Flatpak support may differ."
+[[ "${ID:-}" == "ubuntu" || "${ID_LIKE:-}" == *ubuntu* || "${ID_LIKE:-}" == *debian* ]] ||
+    warn "This is not a detected Ubuntu/Debian system; Flatpak support may differ."
 
 info "Distribution: ${PRETTY_NAME:-unknown}"
 info "Architecture: $ARCH"
 info "Account: ${USER:-$(id -un)}"
 info "No administrator privileges will be requested by this project."
 
-if [[ -n "${SPOTIFY_SETUP_DIR:-}" ]]; then
-    CANDIDATE="$SPOTIFY_SETUP_DIR"
-elif [[ -f "$PROJECT_DIR/.setup-dir" ]]; then
-    IFS= read -r CANDIDATE < "$PROJECT_DIR/.setup-dir" || true
-    if [[ -z "$CANDIDATE" || ! -d "$(dirname -- "$CANDIDATE")" || ! -w "$(dirname -- "$CANDIDATE")" ]]; then
-        CANDIDATE=""
-    fi
-else
-    CANDIDATE=""
-fi
+minimum_kb=$((5 * 1024 * 1024))
+home_candidate="$HOME/.local/share/spotify-spicetify"
+candidate="$(setup_dir_candidate)"
 
-if [[ -z "$CANDIDATE" ]]; then
-    GOINFRE_USER_DIR="/goinfre/${USER:-$(id -un)}"
-    if [[ -d "$GOINFRE_USER_DIR" && -w "$GOINFRE_USER_DIR" ]] ||
-       [[ -d /goinfre && -w /goinfre ]]; then
-        CANDIDATE="$GOINFRE_USER_DIR/spotify-spicetify"
+available_kb() {
+    df -Pk "$1" | awk 'NR == 2 { print $4; exit }'
+}
+
+prepare_candidate() {
+    mkdir -p "$1" 2>/dev/null || return 1
+    [[ -w "$1" ]] || return 1
+    local free
+    free="$(available_kb "$1")" || return 1
+    [[ "$free" =~ ^[0-9]+$ ]] || return 1
+    printf '%s\n' "$free"
+}
+
+if ! candidate_kb="$(prepare_candidate "$candidate")"; then
+    if [[ -n "${SPOTIFY_SETUP_DIR:-}" ]]; then
+        die "The explicitly selected setup directory is not writable: $candidate."
+    elif setup_has_pinned_install "$candidate"; then
+        die "The existing Spotify installation is not writable at $candidate. It was not moved or duplicated; restore write access or set SPOTIFY_SETUP_DIR to that same installation path."
+    elif [[ "$candidate" != "$home_candidate" ]] &&
+         candidate_kb="$(prepare_candidate "$home_candidate")"; then
+        candidate="$home_candidate"
+        warn "The preferred setup directory is not writable. Falling back to $candidate."
     else
-        CANDIDATE="$HOME/.local/share/spotify-spicetify"
+        die "Cannot create or write to the selected setup directory: $candidate. Choose another writable path with SPOTIFY_SETUP_DIR=/path/to/folder ./launch.sh."
     fi
 fi
 
-mkdir -p "$CANDIDATE" 2>/dev/null || die "Cannot create the chosen setup directory: $CANDIDATE"
-[[ -w "$CANDIDATE" ]] || die "Chosen setup directory is not writable: $CANDIDATE"
-
-AVAILABLE_KB="$(df -Pk "$CANDIDATE" | awk 'NR==2 {print $4}')"
-[[ "$AVAILABLE_KB" =~ ^[0-9]+$ ]] || die "Could not determine free disk space for $CANDIDATE"
-MINIMUM_KB=$((5 * 1024 * 1024))
-if (( AVAILABLE_KB < MINIMUM_KB )); then
-    AVAILABLE_GB=$((AVAILABLE_KB / 1024 / 1024))
-    die "Only about ${AVAILABLE_GB} GiB is free at $CANDIDATE; at least 5 GiB is required. Choose a writable mounted drive with SPOTIFY_SETUP_DIR=/path/to/folder ./install.sh. Nothing was installed."
+if (( candidate_kb < minimum_kb )); then
+    if setup_has_pinned_install "$candidate"; then
+        candidate_gb=$((candidate_kb / 1024 / 1024))
+        warn "The existing pinned installation has only about ${candidate_gb} GiB free at $candidate. Keeping it in place to avoid silently creating a second installation; free at least 5 GiB before updating or repairing it."
+    else
+        home_kb="$(prepare_candidate "$home_candidate" || true)"
+        if [[ "$candidate" != "$home_candidate" &&
+              "$home_kb" =~ ^[0-9]+$ ]] && (( home_kb >= minimum_kb )); then
+            candidate="$home_candidate"
+            candidate_kb="$home_kb"
+            warn "The preferred storage location has less than 5 GiB free. Falling back to $candidate."
+        else
+            available_gb=$((candidate_kb / 1024 / 1024))
+            die "Only about ${available_gb} GiB is free at $candidate; a new installation needs at least 5 GiB. Free space or choose a writable mounted drive with SPOTIFY_SETUP_DIR=/path/to/folder ./launch.sh. Nothing was installed."
+        fi
+    fi
 fi
 
-printf '%s\n' "$CANDIDATE" > "$PROJECT_DIR/.setup-dir"
-export SPOTIFY_SETUP_DIR="$CANDIDATE"
-export FLATPAK_USER_DIR="$CANDIDATE/flatpak"
+printf '%s\n' "$candidate" > "$PROJECT_DIR/.setup-dir"
+export SPOTIFY_SETUP_DIR="$candidate"
+export FLATPAK_USER_DIR="$candidate/flatpak"
 mkdir -p "$FLATPAK_USER_DIR"
 
-AVAILABLE_GB=$((AVAILABLE_KB / 1024 / 1024))
-ok "Setup location: $CANDIDATE"
-ok "Free space available: approximately ${AVAILABLE_GB} GiB"
-HOME_AVAILABLE_KB="$(df -Pk "$HOME" | awk 'NR==2 {print $4}')"
-if [[ "$HOME_AVAILABLE_KB" =~ ^[0-9]+$ ]] && (( HOME_AVAILABLE_KB < 1024 * 1024 )); then
-    HOME_AVAILABLE_MB=$((HOME_AVAILABLE_KB / 1024))
-    warn "Your home filesystem has only about ${HOME_AVAILABLE_MB} MiB free. Spotify's sandbox profile/cache stays under ~/.var/app/$APP_ID by default and may consume home space. The installer will not move or symlink your login data."
+available_gb=$((candidate_kb / 1024 / 1024))
+ok "Setup location: $candidate"
+ok "Free space available: approximately ${available_gb} GiB"
+
+home_kb="$(available_kb "$HOME" 2>/dev/null || true)"
+if [[ "$home_kb" =~ ^[0-9]+$ ]] && (( home_kb < 1024 * 1024 )); then
+    home_mb=$((home_kb / 1024))
+    warn "Your home filesystem has only about ${home_mb} MiB free. Spotify's profile/cache stays under ~/.var/app/$APP_ID and may consume home space. The installer will not move or symlink your login data."
 fi
-if [[ "$CANDIDATE" == /goinfre/* ]]; then
-    warn "/goinfre may be temporary or cleaned by the campus. Keep this Git repository outside Goinfre."
+if [[ "$candidate" == /goinfre/* ]]; then
+    warn "/goinfre may be temporary or cleaned by campus policy. Keep this Git repository outside Goinfre."
 fi

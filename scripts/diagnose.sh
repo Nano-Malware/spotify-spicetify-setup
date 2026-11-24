@@ -2,23 +2,11 @@
 # Collect a safe, read-only report for Spotify/Flatpak/graphics troubleshooting.
 set -Eeuo pipefail
 
-PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-APP_ID="com.spotify.Client"
-TARGET_VERSION="1.2.52.442.g01893f92"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=scripts/common.sh
+source "$SCRIPT_DIR/common.sh"
 
-SETUP_DIR="${SPOTIFY_SETUP_DIR:-}"
-if [[ -z "$SETUP_DIR" && -f "$PROJECT_DIR/.setup-dir" ]]; then
-    IFS= read -r SETUP_DIR < "$PROJECT_DIR/.setup-dir" || true
-fi
-if [[ -z "$SETUP_DIR" ]]; then
-    GOINFRE_USER_DIR="/goinfre/${USER:-$(id -un)}"
-    if [[ -d "$GOINFRE_USER_DIR" && -w "$GOINFRE_USER_DIR" ]] ||
-       [[ -d /goinfre && -w /goinfre ]]; then
-        SETUP_DIR="$GOINFRE_USER_DIR/spotify-spicetify"
-    else
-        SETUP_DIR="$HOME/.local/share/spotify-spicetify"
-    fi
-fi
+SETUP_DIR="$(setup_dir_candidate)"
 export FLATPAK_USER_DIR="$SETUP_DIR/flatpak"
 
 section() { printf '\n=== %s ===\n' "$1"; }
@@ -68,13 +56,13 @@ show_value "Runtime" "$(info_value --system "$APP_ID" --show-runtime)"
 show_value "System Mesa 24.08" "$(version_value --system org.freedesktop.Platform.GL.default//24.08 || true)"
 show_value "System Mesa 25.08" "$(version_value --system org.freedesktop.Platform.GL.default//25.08 || true)"
 
-section "Goinfre user Spotify"
+section "Project-owned user Spotify"
 show_value "Flatpak user directory" "$FLATPAK_USER_DIR"
 show_value "Installed" "$(flatpak info --user "$APP_ID" >/dev/null 2>&1 && printf yes || printf no)"
 show_value "Spotify version" "$(version_value --user "$APP_ID" || true)"
 show_value "Spotify ref" "$(info_value --user "$APP_ID" --show-ref)"
 show_value "Spotify origin" "$(info_value --user "$APP_ID" --show-origin)"
-show_value "Expected Spotify version" "$TARGET_VERSION"
+show_value "Expected Spotify version" "$TARGET_SPOTIFY_VERSION"
 show_value "Runtime" "$(info_value --user "$APP_ID" --show-runtime)"
 show_value "Mesa 24.08" "$(version_value --user org.freedesktop.Platform.GL.default//24.08 || true)"
 show_value "Mesa 24.08 extra" "$(version_value --user org.freedesktop.Platform.GL.default//24.08extra || true)"

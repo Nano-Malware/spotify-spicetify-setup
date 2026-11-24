@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/common.sh"
 init_paths
 
-require_spicetify
+[[ -x "$SPICETIFY_BIN" ]] || die "Spicetify CLI is missing at $SPICETIFY_BIN. Run ./launch.sh first."
 ensure_user_spotify_installed
 require_command curl
 require_command sha256sum
@@ -32,7 +32,7 @@ SPOTIFY_PATH="$(spotify_install_path)" ||
 [[ -d "$SPOTIFY_PATH/Apps" ]] ||
     die "Spotify's Apps directory is missing: $SPOTIFY_PATH/Apps"
 [[ -w "$SPOTIFY_PATH" && -w "$SPOTIFY_PATH/Apps" ]] ||
-    die "Spotify's Goinfre application files are not writable by this user."
+    die "Spotify's project-owned application files are not writable by this user."
 mkdir -p "$(dirname -- "$PREFS_PATH")"
 
 spicetify_cmd config spotify_path "$SPOTIFY_PATH" >/dev/null
@@ -69,8 +69,8 @@ ini_value() {
 
 MARKETPLACE_APP_DIR="$SPICETIFY_CONFIG_DIR/CustomApps/marketplace"
 MARKETPLACE_THEME_DIR="$SPICETIFY_CONFIG_DIR/Themes/marketplace"
-MARKETPLACE_ZIP_URL="https://github.com/spicetify/marketplace/releases/latest/download/marketplace.zip"
-MARKETPLACE_COLOR_URL="https://raw.githubusercontent.com/spicetify/marketplace/main/resources/color.ini"
+MARKETPLACE_ZIP_URL="https://github.com/spicetify/marketplace/releases/download/v${MARKETPLACE_VERSION}/marketplace.zip"
+MARKETPLACE_COLOR_URL="https://raw.githubusercontent.com/spicetify/marketplace/v${MARKETPLACE_VERSION}/resources/color.ini"
 
 if [[ ! -s "$MARKETPLACE_APP_DIR/manifest.json" || ! -s "$MARKETPLACE_APP_DIR/index.js" ]]; then
     [[ ! -e "$MARKETPLACE_APP_DIR" ]] ||
@@ -83,6 +83,11 @@ if [[ ! -s "$MARKETPLACE_APP_DIR/manifest.json" || ! -s "$MARKETPLACE_APP_DIR/in
     run_with_progress "Downloading Spicetify Marketplace" \
         curl --fail --location --retry 3 --retry-delay 2 --silent --show-error \
         "$MARKETPLACE_ZIP_URL" -o "$marketplace_tmp/marketplace.zip"
+    if ! printf '%s  %s\n' "$MARKETPLACE_ARCHIVE_SHA256" "$marketplace_tmp/marketplace.zip" |
+        sha256sum --check --status -; then
+        die "Marketplace $MARKETPLACE_VERSION archive checksum verification failed. Refusing to extract it."
+    fi
+    ok "Marketplace $MARKETPLACE_VERSION archive SHA-256 verified."
     run_with_progress "Extracting Spicetify Marketplace" \
         unzip -q -o "$marketplace_tmp/marketplace.zip" -d "$marketplace_tmp/unpacked"
     [[ -s "$marketplace_tmp/unpacked/marketplace-dist/manifest.json" &&
@@ -159,7 +164,8 @@ if [[ "$spotify_is_patched" == "1" &&
       -f "$APPLIED_MARKER" &&
       "$(sed -n '1p' "$APPLIED_MARKER")" == "$installed_version" &&
       "$(sed -n '2p' "$APPLIED_MARKER")" == "$cli_version" &&
-      "$(sed -n '3p' "$APPLIED_MARKER")" == "$config_hash" ]]; then
+      "$(sed -n '3p' "$APPLIED_MARKER")" == "$config_hash" &&
+      "$(sed -n '4p' "$APPLIED_MARKER")" == "$MARKETPLACE_VERSION" ]]; then
     ok "Spicetify and Marketplace are already applied to Spotify $installed_version; skipping patching."
     exit 0
 fi
@@ -179,7 +185,7 @@ reinstall_pinned_spotify() {
     flatpak remotes --user --columns=name | grep -Fxq spotify-legacy ||
         die "The installer completed without registering the verified spotify-legacy Flatpak remote."
 
-    warn "Spicetify found modified Spotify files without a usable native state. Reinstalling only the pinned Goinfre app; your Spotify profile and login data are kept."
+    warn "Spicetify found modified Spotify files without a usable native state. Reinstalling only the pinned project-owned app; your Spotify profile and login data are kept."
     flatpak mask --user --remove "$APP_ID" >/dev/null 2>&1 || true
     run_with_progress "Removing damaged pinned Spotify app" \
         flatpak uninstall --user --noninteractive --assumeyes "$APP_ID" ||
@@ -245,6 +251,6 @@ fi
     die "Spicetify finished without creating the Marketplace route. The patch was not marked as complete."
 
 config_hash="$(sha256sum "$SPICETIFY_CONFIG_FILE" | awk '{print $1}')"
-printf '%s\n%s\n%s\n' "$installed_version" "$cli_version" "$config_hash" > "$APPLIED_MARKER.tmp"
+printf '%s\n%s\n%s\n%s\n' "$installed_version" "$cli_version" "$config_hash" "$MARKETPLACE_VERSION" > "$APPLIED_MARKER.tmp"
 mv -- "$APPLIED_MARKER.tmp" "$APPLIED_MARKER"
 ok "Spicetify and Marketplace are applied to Spotify $installed_version."

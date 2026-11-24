@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=scripts/common.sh
 source "$SCRIPT_DIR/common.sh"
 init_paths
-require_spicetify
+[[ -x "$SPICETIFY_BIN" ]] || die "Spicetify CLI is missing at $SPICETIFY_BIN. Run ./launch.sh first."
 ensure_user_spotify_installed
 
 SPOTIFY_PATH="$(spotify_install_path)" || die "Could not determine Spotify's installation path."
