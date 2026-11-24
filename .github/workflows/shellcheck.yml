@@ -25,3 +25,5 @@ jobs:
         run: bash tests/simulate_launch_first_run.sh
       - name: Simulate storage fallback behavior
         run: bash tests/simulate_detect_storage.sh
+      - name: Simulate Spotify cache cleanup
+        run: bash tests/simulate_spotify_cache_cleanup.sh
