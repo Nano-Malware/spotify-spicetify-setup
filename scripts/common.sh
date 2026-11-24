@@ -197,3 +197,66 @@ spotify_install_path() {
 ensure_user_spotify_installed() {
     flatpak info --user "$APP_ID" >/dev/null 2>&1 || die "Spotify is not installed in the configured user-level Flatpak installation. Run ./launch.sh."
 }
+
+# Remove only Spotify's disposable streaming cache when its profile filesystem
+# is critically low on space. Never touch profile settings or login data.
+cleanup_spotify_cache_if_low_space() {
+    local profile_dir="$HOME/.var/app/$APP_ID"
+    local cache_dir="$profile_dir/cache/spotify"
+    local minimum_free_kb=$((512 * 1024))
+    local available_kb
+    local running_apps
+    local free_after_kb
+    local free_after_mb
+
+    [[ -d "$profile_dir" ]] || return 0
+    if [[ -L "$profile_dir" ]]; then
+        warn "Spotify profile path is a symlink; skipping automatic cache cleanup."
+        return 0
+    fi
+
+    available_kb="$(df -Pk "$profile_dir" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
+    if [[ ! "$available_kb" =~ ^[0-9]+$ ]]; then
+        warn "Could not determine free space for Spotify's profile; skipping automatic cache cleanup."
+        return 0
+    fi
+    if (( available_kb >= minimum_free_kb )); then
+        return 0
+    fi
+
+    warn "The filesystem containing Spotify's profile has only $((available_kb / 1024)) MiB free (below 512 MiB)."
+    if [[ ! -d "$cache_dir" ]]; then
+        warn "Spotify's disposable cache is not present; no profile files were removed."
+        return 0
+    fi
+    if [[ -L "$profile_dir/cache" || -L "$cache_dir" ]]; then
+        warn "Spotify cache path is a symlink; skipping automatic cleanup."
+        return 0
+    fi
+
+    if ! running_apps="$(flatpak ps --columns=application 2>/dev/null)"; then
+        warn "Could not confirm whether Spotify is running; leaving its cache untouched."
+        return 0
+    fi
+    if awk -v app="$APP_ID" 'NR > 1 && $1 == app { found = 1 } END { exit !found }' <<< "$running_apps"; then
+        warn "Spotify is already running; leaving its cache untouched. Close Spotify and rerun ./launch.sh to retry cleanup."
+        return 0
+    fi
+
+    info "Clearing only Spotify's disposable streaming cache to recover home-directory space."
+    if ! rm -rf -- "$cache_dir"; then
+        warn "Could not remove Spotify's cache; no other profile data was touched."
+        return 0
+    fi
+
+    free_after_kb="$(df -Pk "$profile_dir" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
+    if [[ "$free_after_kb" =~ ^[0-9]+$ ]]; then
+        free_after_mb=$((free_after_kb / 1024))
+        ok "Spotify cache cleared. The profile filesystem now has about \${free_after_mb} MiB free."
+        if (( free_after_kb < minimum_free_kb )); then
+            warn "Free space is still below 512 MiB. No other files were deleted; consider removing unrelated files or contacting your administrator."
+        fi
+    else
+        ok "Spotify's disposable cache was cleared."
+    fi
+}
