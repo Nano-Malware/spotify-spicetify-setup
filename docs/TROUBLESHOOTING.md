@@ -57,6 +57,7 @@ Expected Spotify version is `1.2.52.442.g01893f92`; expected runtime is `org.fre
 - The historical Flathub recipe requests X11 and PulseAudio. On an X11 desktop, this avoids the newer Wayland-enabled permission set from the current package.
 - `flatpak kill` does not accept `--user`. Use `flatpak ps` to identify the running instance, then pass its instance ID to `flatpak kill INSTANCE_ID`.
 - Spotify's profile remains under `~/.var/app/com.spotify.Client`. System and user Flatpak copies share this per-app profile path, so close one before testing the other.
+- Before launching, `./launch.sh` checks free space on the filesystem containing Spotify's profile. If it is below 512 MiB, the launcher removes only `~/.var/app/com.spotify.Client/cache/spotify` when Spotify is not running and the cache path is not a symlink. Preferences, login/session data, and other caches are preserved. If cleanup is unsafe or insufficient, the launcher warns and continues without deleting other files.
 - `Failed to load module canberra-gtk-module` and the Ayatana app-indicator deprecation message are warnings; they do not alone prove Spotify failed to launch.
 - An AMD DRM warning stating that 3.54 is required indicates that an incompatible newer Mesa extension is active. Do not replace system Mesa or glibc to work around it.
 - Do not disable TLS verification or use `curl -k` when downloads fail. Investigate the campus CA/trust configuration instead.
