@@ -51,6 +51,9 @@ require_command grep
 exec 9>"$SETUP_DIR/.launch.lock"
 flock -n 9 || die "Another Spotify setup/launch process is already running."
 
+# Recover the Spotify profile filesystem before starting Flatpak.
+cleanup_spotify_cache_if_low_space
+
 if spotify_is_installed; then
     info "Current project Spotify: $(spotify_installed_version || printf unknown)"
 else
