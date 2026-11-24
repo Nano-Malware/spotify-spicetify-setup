@@ -252,7 +252,7 @@ cleanup_spotify_cache_if_low_space() {
     free_after_kb="$(df -Pk "$profile_dir" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
     if [[ "$free_after_kb" =~ ^[0-9]+$ ]]; then
         free_after_mb=$((free_after_kb / 1024))
-        ok "Spotify cache cleared. The profile filesystem now has about \${free_after_mb} MiB free."
+        ok "Spotify cache cleared. The profile filesystem now has about ${free_after_mb} MiB free."
         if (( free_after_kb < minimum_free_kb )); then
             warn "Free space is still below 512 MiB. No other files were deleted; consider removing unrelated files or contacting your administrator."
         fi
