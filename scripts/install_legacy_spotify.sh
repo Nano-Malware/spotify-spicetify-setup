@@ -181,7 +181,7 @@ if [[ "$repo_is_valid" != "1" ]]; then
     if ! run_with_progress "Downloading Spotify Flatpak repository" curl --fail --location --retry 3 --retry-delay 2 --silent --show-error "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
         die "The Spotify $TARGET_VERSION repository archive is not available yet. Check the GitHub Actions build workflow: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
     fi
-    if ! printf '%s  %s\\n' "$SPOTIFY_REPO_ARCHIVE_SHA256" "$TMP_DIR/$REPO_ARCHIVE_NAME" |
+    if ! printf '%s  %s\n' "$SPOTIFY_REPO_ARCHIVE_SHA256" "$TMP_DIR/$REPO_ARCHIVE_NAME" |
         sha256sum --check --status -; then
         die "The Spotify Flatpak repository archive failed its pinned SHA-256 check. Refusing to extract it."
     fi
