@@ -51,6 +51,9 @@ require_command grep
 exec 9>"$SETUP_DIR/.launch.lock"
 flock -n 9 || die "Another Spotify setup/launch process is already running."
 
+# Stop a local Spotify instance and recover confirmed stale shared-profile locks.
+bash "$PROJECT_DIR/scripts/recover_spotify_profile.sh"
+
 # Recover the Spotify profile filesystem before starting Flatpak.
 cleanup_spotify_cache_if_low_space
 
