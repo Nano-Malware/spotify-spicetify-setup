@@ -10,7 +10,7 @@ The launcher installs this combination in the project-owned Flatpak user install
 
 This is the combination previously reported to run smoothly on the older PC with Linux kernel 5.15 and AMD DRM 3.42. The 24.08 Mesa branch is selected instead of the newer 25.08 branch that delivered Mesa 26.2.x on the affected machine.
 
-The historical Flatpak OSTree repository archive is built by GitHub Actions from the original Flathub packaging source. A single-file `.flatpak` bundle cannot carry the detached metadata this app needs for its Flatpak extra-data source. The repository archive retains that metadata. The proprietary Spotify payload is not hosted in this repository: Flatpak obtains it from the original Snapcraft URL and checks the SHA-256 recorded in the historical Flathub recipe.
+The historical Flatpak OSTree repository archive is built by GitHub Actions from the original Flathub packaging source. Installation also requires the exact Mesa 25.2.6 GL and GL-extra commits to be present in the system Flatpak installation so the project can export them into its user installation; hosts without those deployments cannot use this pinned graphics setup. A single-file `.flatpak` bundle cannot carry the detached metadata this app needs for its Flatpak extra-data source. The repository archive retains that metadata. The proprietary Spotify payload is not hosted in this repository: Flatpak obtains it from the original Snapcraft URL and checks the SHA-256 recorded in the historical Flathub recipe.
 
 > **Security/support warning:** Freedesktop 24.08 reached end of life in September 2026. It no longer receives normal security updates. This project intentionally pins it for compatibility with older graphics hardware; use a currently supported runtime instead when security maintenance is more important than reproducing this older graphics stack.
 
@@ -26,8 +26,8 @@ The script:
 
 1. Uses the `FLATPAK_USER_DIR` selected by `.setup-dir` (Goinfre by default).
 2. Installs Freedesktop 24.08 into that user installation. It checks the system Flatpak installation for the exact Mesa 25.2.6 GL and GL-extra commits, re-exports the installed system Mesa deployment files and metadata as temporary local Flatpak runtime bundles, then installs and pins the resulting commits in the project-owned user installation. It does not modify the system Flathub remote and refuses to use a newer Mesa build.
-3. Downloads the release repository archive and its checksum over HTTPS.
-4. Verifies the archive checksum and extracts the repository into the project-owned setup directory.
+3. Downloads the release repository archive over HTTPS and checks it against the SHA-256 digest pinned in `scripts/common.sh`.
+4. Validates the archive paths, then extracts the repository into the project-owned setup directory.
 5. Registers a project-specific per-user Flatpak remote and verifies that the app's extra-data metadata is present.
 6. Installs the app from that local repository and verifies the Spotify version, runtime, and origin.
 7. Masks the Spotify app and Mesa extension against automatic replacement.
@@ -41,7 +41,8 @@ If the repository archive release asset is not available yet, check the project'
 Always select the project-owned user installation:
 
 ```bash
-export FLATPAK_USER_DIR="/goinfre/$USER/spotify-spicetify/flatpak"
+IFS= read -r SETUP_DIR < .setup-dir
+export FLATPAK_USER_DIR="$SETUP_DIR/flatpak"
 flatpak info --user com.spotify.Client
 flatpak info --user --show-origin com.spotify.Client
 flatpak info --user org.freedesktop.Platform//24.08
@@ -56,6 +57,7 @@ Expected Spotify version is `1.2.52.442.g01893f92`; expected runtime is `org.fre
 - The historical Flathub recipe requests X11 and PulseAudio. On an X11 desktop, this avoids the newer Wayland-enabled permission set from the current package.
 - `flatpak kill` does not accept `--user`. Use `flatpak ps` to identify the running instance, then pass its instance ID to `flatpak kill INSTANCE_ID`.
 - Spotify's profile remains under `~/.var/app/com.spotify.Client`. System and user Flatpak copies share this per-app profile path, so close one before testing the other.
+- Before launching, `./launch.sh` checks free space on the filesystem containing Spotify's profile. If it is below 512 MiB, the launcher removes only `~/.var/app/com.spotify.Client/cache/spotify` when Spotify is not running and the cache path is not a symlink. Preferences, login/session data, and other caches are preserved. If cleanup is unsafe or insufficient, the launcher warns and continues without deleting other files.
 - `Failed to load module canberra-gtk-module` and the Ayatana app-indicator deprecation message are warnings; they do not alone prove Spotify failed to launch.
 - An AMD DRM warning stating that 3.54 is required indicates that an incompatible newer Mesa extension is active. Do not replace system Mesa or glibc to work around it.
 - Do not disable TLS verification or use `curl -k` when downloads fail. Investigate the campus CA/trust configuration instead.
@@ -71,9 +73,9 @@ The report displays app/runtime/graphics versions and storage information. It in
 
 ## Automatic Spicetify and Marketplace setup
 
-The main `./launch.sh` entry point now also runs `scripts/configure_spicetify.sh` after the pinned Spotify app and Spicetify CLI are ready. It:
+The main `./launch.sh` entry point rechecks the host and storage on every launch, verifies/installs the pinned Spicetify CLI `2.46.7`, then runs `scripts/configure_spicetify.sh` after the pinned Spotify app is ready. Spicetify CLI `2.46.7` is downloaded from its versioned Linux release archive and verified against a pinned SHA-256 digest before extraction. Marketplace is pinned to `1.0.12` instead of following the latest release, and its ZIP is also verified against a pinned SHA-256 digest before extraction. It:
 
-- Sets Spicetify's config and state directories under the selected setup directory in Goinfre.
+- Sets Spicetify's config and state directories under the selected setup directory.
 - Points Spicetify at the project-owned Flatpak Spotify files and the existing `~/.var/app/com.spotify.Client/config/spotify/prefs` file.
 - Disables the optional Spicetify update check so ordinary launches do not make an extra GitHub API release request.
 - Installs Marketplace from its official release only when its app files are absent; it does not overwrite an existing Marketplace directory or other custom apps/themes.
@@ -92,4 +94,7 @@ Spicetify requires its own built-in `backup` command before the first `apply`. T
 
 Before patching, the launcher checks that Spotify's preferences record the pinned app version. If the profile has not been initialized for this Spotify build, it opens Spotify once; after you close it, the launcher completes Spicetify setup and opens the patched app. This keeps the first-run workflow inside one `./launch.sh` invocation.
 
-The launcher leaves `SPICETIFY_STATE` unset and supplies the project-owned XDG directories to the CLI. Do not run a bare `spicetify backup apply` from the shell: that may use the system Spicetify configuration and target the system-wide Spotify installation instead of the Goinfre copy.
+The launcher leaves `SPICETIFY_STATE` unset and supplies the project-owned XDG directories to the CLI. Do not run a bare `spicetify backup apply` from the shell: that may use the system Spicetify configuration and target the system-wide Spotify installation instead of the project-owned copy.
+
+
+The Spicetify CLI, Marketplace, and historical Spotify Flatpak repository archives are fetched from fixed release tags and verified against SHA-256 digests recorded by GitHub for their release assets and pinned in `scripts/common.sh`, with expected versions/file layouts checked after extraction. These hashes provide artifact-integrity checks, not publisher signatures or a guarantee that upstream release accounts/artifacts cannot be compromised.

@@ -14,14 +14,12 @@ require_command awk
 require_command grep
 require_command tar
 
-TARGET_VERSION="1.2.52.442.g01893f92"
-TARGET_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
-TARGET_REF="app/com.spotify.Client/x86_64/stable"
-RUNTIME_REF="org.freedesktop.Platform//24.08"
+TARGET_VERSION="$TARGET_SPOTIFY_VERSION"
+TARGET_RUNTIME="$TARGET_SPOTIFY_RUNTIME"
+TARGET_REF="$TARGET_SPOTIFY_REF"
 MESA_REF="org.freedesktop.Platform.GL.default//24.08"
 RELEASE_TAG="spotify-1.2.52.442"
 REPO_ARCHIVE_NAME="spotify-1.2.52.442-repo.tar.gz"
-CHECKSUM_NAME="$REPO_ARCHIVE_NAME.sha256"
 REMOTE_NAME="spotify-legacy"
 LOCAL_REPO_DIR="$SETUP_DIR/spotify-flatpak-repo"
 RELEASE_URL="https://github.com/Nano-Malware/spotify-spicetify-setup/releases/download/$RELEASE_TAG"
@@ -34,13 +32,13 @@ if [[ "$current_version" == "$TARGET_VERSION" && "$current_runtime" == "$TARGET_
     info "The requested Spotify build is already installed: $TARGET_VERSION"
 else
     if flatpak ps --columns=application 2>/dev/null | grep -Fxq "$APP_ID"; then
-        die "Spotify is running. Close both system and Goinfre Spotify before replacing the user installation."
+        die "Spotify is running. Close both system Spotify and the project-owned user installation before replacing the user installation."
     fi
     warn "Freedesktop 24.08 reached end of life in September 2026 and no longer receives normal security updates. This is an intentional compatibility pin."
 fi
 
 if ! flatpak remotes --user --columns=name | grep -Fxq flathub; then
-    info "Adding Flathub to the Goinfre user installation."
+    info "Adding Flathub to the project-owned user installation."
     flatpak remote-add --user --if-not-exists flathub "$FLATHUB_URL"
 fi
 
@@ -133,17 +131,17 @@ else
     flatpak mask --user --remove "$MESA_EXTRA_REF" >/dev/null 2>&1 || true
 
     if flatpak info --user "$MESA_REF" >/dev/null 2>&1; then
-        info "Replacing the newer Goinfre Mesa GL extension with the verified 25.2.6 bundle."
+        info "Replacing the newer project-owned Mesa GL extension with the verified 25.2.6 bundle."
         flatpak uninstall --user --noninteractive --assumeyes "$MESA_REF"
     fi
     if flatpak info --user "$MESA_EXTRA_REF" >/dev/null 2>&1; then
-        info "Replacing the newer Goinfre Mesa GL-extra extension with the verified 25.2.6 bundle."
+        info "Replacing the newer project-owned Mesa GL-extra extension with the verified 25.2.6 bundle."
         flatpak uninstall --user --noninteractive --assumeyes "$MESA_EXTRA_REF"
     fi
 
-    info "Installing the verified Mesa 25.2.6 GL bundle in Goinfre."
+    info "Installing the verified Mesa 25.2.6 GL bundle in the project-owned user installation."
     run_with_progress "Installing Mesa 25.2.6 GL extension" flatpak install --user --noninteractive --assumeyes --bundle "$mesa_bundle"
-    info "Installing the verified Mesa 25.2.6 GL-extra bundle in Goinfre."
+    info "Installing the verified Mesa 25.2.6 GL-extra bundle in the project-owned user installation."
     run_with_progress "Installing Mesa 25.2.6 GL-extra extension" flatpak install --user --noninteractive --assumeyes --bundle "$mesa_extra_bundle"
 
     installed_mesa_commit="$(flatpak info --user --show-commit "$MESA_REF" 2>/dev/null || true)"
@@ -172,7 +170,7 @@ mesa_extra_commit="$(flatpak info --user --show-commit "$MESA_EXTRA_REF" 2>/dev/
    "$mesa_extra_commit" == "$(sed -n '4p' "$MESA_PIN_FILE")" ]] ||
     die "Mesa commit verification failed. The locally exported 25.2.6 commits are not active."
 
-info "Verified Goinfre Mesa $mesa_version / $mesa_extra_version and both locally pinned commits."
+info "Verified project-owned Mesa $mesa_version / $mesa_extra_version and both locally pinned commits."
 repo_is_valid=0
 if [[ -f "$LOCAL_REPO_DIR/config" && -s "$LOCAL_REPO_DIR/summary" && -d "$LOCAL_REPO_DIR/objects" ]]; then
     repo_is_valid=1
@@ -180,17 +178,14 @@ fi
 
 if [[ "$repo_is_valid" != "1" ]]; then
     info "The project-owned Spotify repository is missing or incomplete. Downloading the verified archive."
-    if ! run_with_progress "Downloading Spotify Flatpak repository" curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
+    if ! run_with_progress "Downloading Spotify Flatpak repository" curl --fail --location --retry 3 --retry-delay 2 --silent --show-error "$RELEASE_URL/$REPO_ARCHIVE_NAME" -o "$TMP_DIR/$REPO_ARCHIVE_NAME"; then
         die "The Spotify $TARGET_VERSION repository archive is not available yet. Check the GitHub Actions build workflow: https://github.com/Nano-Malware/spotify-spicetify-setup/actions"
     fi
-    if ! run_with_progress "Downloading repository checksum" curl -fL --retry 3 --retry-delay 2 "$RELEASE_URL/$CHECKSUM_NAME" -o "$TMP_DIR/$CHECKSUM_NAME"; then
-        die "The Spotify repository archive checksum is not available. Check the GitHub Actions build workflow."
+    if ! printf '%s  %s\n' "$SPOTIFY_REPO_ARCHIVE_SHA256" "$TMP_DIR/$REPO_ARCHIVE_NAME" |
+        sha256sum --check --status -; then
+        die "The Spotify Flatpak repository archive failed its pinned SHA-256 check. Refusing to extract it."
     fi
-
-    (
-        cd "$TMP_DIR"
-        sha256sum --check "$CHECKSUM_NAME"
-    )
+    ok "Spotify Flatpak repository archive SHA-256 verified."
 
     if ! tar -tzf "$TMP_DIR/$REPO_ARCHIVE_NAME" | awk '
         $0 !~ /^spotify-flatpak-repo(\/|$)/ || $0 ~ /^\// || $0 ~ /(^|\/)\.\.(\/|$)/ { bad = 1 }
@@ -213,7 +208,7 @@ REPO_URL="file://$LOCAL_REPO_DIR"
 if flatpak remotes --user --columns=name | grep -Fxq "$REMOTE_NAME"; then
     flatpak remote-modify --user --no-gpg-verify --url="$REPO_URL" "$REMOTE_NAME"
 else
-    info "Registering the project-owned Spotify repository in the Goinfre Flatpak installation."
+    info "Registering the project-owned Spotify repository in the project-owned Flatpak installation."
     flatpak remote-add --user --no-gpg-verify "$REMOTE_NAME" "$REPO_URL"
 fi
 
@@ -260,7 +255,7 @@ installed_ref="$(flatpak info --user --show-ref "$APP_ID" 2>/dev/null || true)"
 printf '\nInstalled Spotify version: %s\n' "${installed_version:-unknown}"
 printf 'Installed runtime: %s\n' "${installed_runtime:-unknown}"
 printf 'Installed ref: %s\n' "${installed_ref:-unknown}"
-printf 'Goinfre Mesa: %s\n' "$mesa_version"
+printf 'Project-owned Mesa: %s\n' "$mesa_version"
 
 [[ "$installed_version" == "$TARGET_VERSION" ]] ||
     die "Spotify version verification failed; expected $TARGET_VERSION."
@@ -275,4 +270,4 @@ flatpak mask --user "$MESA_REF"
 if flatpak info --user "$MESA_EXTRA_REF" >/dev/null 2>&1; then
     flatpak mask --user "$MESA_EXTRA_REF"
 fi
-ok "Spotify $TARGET_VERSION and its compatible 24.08 Mesa stack are installed and pinned in Goinfre."
+ok "Spotify $TARGET_VERSION and its compatible 24.08 Mesa stack are installed and pinned in the project-owned user installation."

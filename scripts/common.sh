@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 # Shared helpers for the Spotify user-space launcher.
+# These variables/functions are consumed by scripts that source this file.
+# shellcheck disable=SC2034,SC2154
 set -Eeuo pipefail
+trap 'rc=$?; printf "[ERROR] %s:%s: command failed (exit %s): %s\\n" "${BASH_SOURCE[0]}" "$LINENO" "$rc" "$BASH_COMMAND" >&2' ERR
+
+# Flatpak info/version output is localized; parsing it must be deterministic.
+export LC_ALL=C
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 APP_ID="com.spotify.Client"
 TARGET_SPOTIFY_VERSION="1.2.52.442.g01893f92"
 TARGET_SPOTIFY_RUNTIME="org.freedesktop.Platform/x86_64/24.08"
+TARGET_SPOTIFY_REF="app/com.spotify.Client/x86_64/stable"
+SPICETIFY_VERSION="2.46.7"
+SPICETIFY_ARCHIVE_SHA256="be73b8c82c445f0d5425ef6044d5d46330fb7a3413d81031225c71bba55bb3e2"
+SPOTIFY_REPO_ARCHIVE_SHA256="0276c8108e57a34507adef1b0ccde042aae116ca491de02a93e7f54a641de17f"
+MARKETPLACE_VERSION="1.0.12"
+MARKETPLACE_ARCHIVE_SHA256="43c8ccff189636cf2a8e8b5ca77e87487d22599ff8dc53b692170f92cbbb4e16"
 FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
-SPICETIFY_RELEASES_URL="https://github.com/spicetify/cli/releases"
 
 info() { printf '\033[1;34m[INFO]\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m[ OK ]\033[0m %s\n' "$*"; }
@@ -112,32 +123,43 @@ spotify_installed_version() {
         }'
 }
 
-spotify_is_target_build() {
-    local installed_version
-    local installed_runtime
-    local installed_ref
+setup_dir_default() {
+    local goinfre_user_dir
 
-    command -v flatpak >/dev/null 2>&1 || return 1
-    installed_version="$(spotify_installed_version)" || return 1
-    installed_runtime="$(flatpak info --user --show-runtime "$APP_ID" 2>/dev/null)" || return 1
-    installed_ref="$(flatpak info --user --show-ref "$APP_ID" 2>/dev/null)" || return 1
-
-    [[ "$installed_version" == "$TARGET_SPOTIFY_VERSION" &&
-       "$installed_runtime" == "$TARGET_SPOTIFY_RUNTIME" &&
-       "$installed_ref" == "app/com.spotify.Client/x86_64/stable" ]]
+    goinfre_user_dir="/goinfre/${USER:-$(id -un)}"
+    if [[ -d "$goinfre_user_dir" && -w "$goinfre_user_dir" ]] ||
+       [[ -d /goinfre && -w /goinfre ]]; then
+        printf '%s/spotify-spicetify\n' "$goinfre_user_dir"
+    else
+        printf '%s/.local/share/spotify-spicetify\n' "$HOME"
+    fi
 }
 
-init_paths() {
+setup_dir_candidate() {
     local saved_path=""
 
     if [[ -n "${SPOTIFY_SETUP_DIR:-}" ]]; then
-        SETUP_DIR="$SPOTIFY_SETUP_DIR"
+        printf '%s\n' "$SPOTIFY_SETUP_DIR"
     elif [[ -f "$PROJECT_DIR/.setup-dir" ]]; then
         IFS= read -r saved_path < "$PROJECT_DIR/.setup-dir" || true
-        SETUP_DIR="$saved_path"
+        if [[ -n "$saved_path" ]]; then
+            printf '%s\n' "$saved_path"
+        else
+            setup_dir_default
+        fi
     else
-        die "Setup location is not recorded yet. Run ./launch.sh to initialize it."
+        setup_dir_default
     fi
+}
+
+setup_has_pinned_install() {
+    local setup_dir="$1"
+
+    [[ -d "$setup_dir/flatpak/app/$APP_ID" ]]
+}
+
+init_paths() {
+    SETUP_DIR="$(setup_dir_candidate)"
 
     [[ -n "$SETUP_DIR" ]] || die "The saved setup directory is empty. Run ./launch.sh to initialize it."
     mkdir -p "$SETUP_DIR"
@@ -162,15 +184,6 @@ init_paths() {
     mkdir -p "$BIN_DIR" "$SPICETIFY_CONFIG_DIR" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 }
 
-require_spicetify() {
-    [[ -x "$SPICETIFY_BIN" ]] || die "Spicetify CLI is missing at $SPICETIFY_BIN. Run ./launch.sh first."
-}
-
-spicetify() {
-    require_spicetify
-    XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_CACHE_HOME="$XDG_CACHE_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" SPICETIFY_CONFIG="$SPICETIFY_CONFIG" "$SPICETIFY_BIN" "$@"
-}
-
 spotify_install_location() {
     flatpak info --user --show-location "$APP_ID" 2>/dev/null
 }
@@ -183,4 +196,67 @@ spotify_install_path() {
 
 ensure_user_spotify_installed() {
     flatpak info --user "$APP_ID" >/dev/null 2>&1 || die "Spotify is not installed in the configured user-level Flatpak installation. Run ./launch.sh."
+}
+
+# Remove only Spotify's disposable streaming cache when its profile filesystem
+# is critically low on space. Never touch profile settings or login data.
+cleanup_spotify_cache_if_low_space() {
+    local profile_dir="$HOME/.var/app/$APP_ID"
+    local cache_dir="$profile_dir/cache/spotify"
+    local minimum_free_kb=$((512 * 1024))
+    local available_kb
+    local running_apps
+    local free_after_kb
+    local free_after_mb
+
+    [[ -d "$profile_dir" ]] || return 0
+    if [[ -L "$profile_dir" ]]; then
+        warn "Spotify profile path is a symlink; skipping automatic cache cleanup."
+        return 0
+    fi
+
+    available_kb="$(df -Pk "$profile_dir" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
+    if [[ ! "$available_kb" =~ ^[0-9]+$ ]]; then
+        warn "Could not determine free space for Spotify's profile; skipping automatic cache cleanup."
+        return 0
+    fi
+    if (( available_kb >= minimum_free_kb )); then
+        return 0
+    fi
+
+    warn "The filesystem containing Spotify's profile has only $((available_kb / 1024)) MiB free (below 512 MiB)."
+    if [[ ! -d "$cache_dir" ]]; then
+        warn "Spotify's disposable cache is not present; no profile files were removed."
+        return 0
+    fi
+    if [[ -L "$profile_dir/cache" || -L "$cache_dir" ]]; then
+        warn "Spotify cache path is a symlink; skipping automatic cleanup."
+        return 0
+    fi
+
+    if ! running_apps="$(flatpak ps --columns=application 2>/dev/null)"; then
+        warn "Could not confirm whether Spotify is running; leaving its cache untouched."
+        return 0
+    fi
+    if awk -v app="$APP_ID" 'NR > 1 && $1 == app { found = 1 } END { exit !found }' <<< "$running_apps"; then
+        warn "Spotify is already running; leaving its cache untouched. Close Spotify and rerun ./launch.sh to retry cleanup."
+        return 0
+    fi
+
+    info "Clearing only Spotify's disposable streaming cache to recover home-directory space."
+    if ! rm -rf -- "$cache_dir"; then
+        warn "Could not remove Spotify's cache; no other profile data was touched."
+        return 0
+    fi
+
+    free_after_kb="$(df -Pk "$profile_dir" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
+    if [[ "$free_after_kb" =~ ^[0-9]+$ ]]; then
+        free_after_mb=$((free_after_kb / 1024))
+        ok "Spotify cache cleared. The profile filesystem now has about ${free_after_mb} MiB free."
+        if (( free_after_kb < minimum_free_kb )); then
+            warn "Free space is still below 512 MiB. No other files were deleted; consider removing unrelated files or contacting your administrator."
+        fi
+    else
+        ok "Spotify's disposable cache was cleared."
+    fi
 }
