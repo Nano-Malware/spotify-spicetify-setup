@@ -54,7 +54,7 @@ done
 
 for instance_id in "${project_instances[@]}"; do
     warn "Spotify is already running from this project's Flatpak installation. Stopping local instance $instance_id before setup."
-    flatpak kill "$instance_id" ||
+    flatpak kill --user "$APP_ID" "$instance_id" ||
         die "Could not stop project-owned Spotify instance $instance_id."
 
     stopped=0
